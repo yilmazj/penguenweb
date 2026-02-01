@@ -1,534 +1,261 @@
 <!DOCTYPE html>
-
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#c8d5e0">
-    <title>Nihilist Penguen</title>
+    <title>Nihilist Penguin</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-user-select: none;
-            user-select: none;
-            touch-action: none;
+        body { margin: 0; overflow: hidden; background-color: #dbe4eb; font-family: 'Courier New', Courier, monospace; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        /* Giriş Ekranı UI */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10;
         }
+        h1 { color: #333; font-size: 2rem; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 5px; }
+        .btn {
+            padding: 15px 30px; border: 2px solid #333; background: transparent;
+            font-size: 1.2rem; cursor: pointer; transition: 0.3s;
+            color: #333; font-weight: bold;
+        }
+        .btn:hover { background: #333; color: #fff; }
 
-```
-    body {
-        overflow: hidden;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: linear-gradient(180deg, #c8d5e0 0%, #e8eef2 100%);
-    }
-
-    #canvas {
-        display: block;
-        width: 100vw;
-        height: 100vh;
-        background: linear-gradient(180deg, #c8d5e0 0%, #e8eef2 60%, #f5f8fa 100%);
-    }
-
-    #joystick-container {
-        position: fixed;
-        bottom: 40px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 150px;
-        height: 150px;
-        opacity: 0.8;
-        z-index: 1000;
-    }
-
-    #joystick-base {
-        position: absolute;
-        width: 150px;
-        height: 150px;
-        border-radius: 50%;
-        background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3), rgba(0,0,0,0.2));
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 3px solid rgba(255,255,255,0.5);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.1), inset 0 2px 8px rgba(255,255,255,0.3);
-    }
-
-    #joystick-stick {
-        position: absolute;
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9), rgba(200,200,200,0.6));
-        border: 2px solid rgba(255,255,255,0.8);
-        box-shadow: 0 4px 16px rgba(0,0,0,0.2), inset 0 -2px 4px rgba(0,0,0,0.1);
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        transition: all 0.1s ease-out;
-    }
-
-    #start-screen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        z-index: 2000;
-        color: white;
-        text-align: center;
-        padding: 20px;
-    }
-
-    #start-screen h1 {
-        font-size: clamp(2rem, 8vw, 4rem);
-        margin-bottom: 20px;
-        text-shadow: 2px 2px 20px rgba(0,0,0,0.3);
-    }
-
-    #start-screen p {
-        font-size: clamp(1rem, 4vw, 1.5rem);
-        margin-bottom: 40px;
-        opacity: 0.9;
-        max-width: 600px;
-    }
-
-    #start-btn {
-        padding: 20px 60px;
-        font-size: clamp(1.2rem, 5vw, 1.8rem);
-        background: white;
-        color: #667eea;
-        border: none;
-        border-radius: 50px;
-        cursor: pointer;
-        font-weight: bold;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-
-    #start-btn:active {
-        transform: scale(0.95);
-        box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-    }
-
-    .hidden {
-        display: none !important;
-    }
-</style>
-```
-
+        /* Joystick Alanı */
+        #joystick-zone {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            width: 150px; height: 150px; z-index: 5; display: none;
+        }
+        
+        /* Mesaj */
+        #message {
+            position: absolute; top: 20%; width: 100%; text-align: center;
+            color: #555; opacity: 0; transition: opacity 2s; pointer-events: none;
+        }
+    </style>
 </head>
 <body>
+
     <div id="start-screen">
-        <h1>🐧 Nihilist Penguen</h1>
-        <p>Sonsuz karlarda yalnız bir yürüyüş... Diğer penguenler her zaman uzakta kalacak.</p>
-        <button id="start-btn">Başla</button>
+        <h1>Nihilist Loop</h1>
+        <p style="margin-bottom: 30px; font-size: 0.8rem;">Varış noktası yok. Sadece yürüyüş.</p>
+        <button class="btn" onclick="startGame(true)">Premium Joystick ile Başla</button>
+        <br>
+        <button style="border:none; font-size:0.8rem; text-decoration:underline; cursor:pointer;" onclick="startGame(false)">Joystick İstemiyorum</button>
     </div>
 
-```
-<canvas id="canvas"></canvas>
+    <div id="message">Onlara asla ulaşamazsın...</div>
+    <div id="joystick-zone"></div>
+    <div id="canvas-container"></div>
 
-<div id="joystick-container" class="hidden">
-    <div id="joystick-base"></div>
-    <div id="joystick-stick"></div>
-</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.9.0/nipplejs.min.js"></script>
 
-<script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const startScreen = document.getElementById('start-screen');
-    const startBtn = document.getElementById('start-btn');
-    const joystickContainer = document.getElementById('joystick-container');
-    const joystickStick = document.getElementById('joystick-stick');
-
-    let gameStarted = false;
-    let audioContext;
-    let windSound, walkSound;
-
-    // Canvas boyutlarını ayarla
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    // Oyuncu
-    const player = {
-        x: 0,
-        y: 0,
-        angle: 0,
-        speed: 0,
-        maxSpeed: 3,
-        rotationSpeed: 0.05
-    };
-
-    // Joystick
-    let joystick = {
-        active: false,
-        startX: 0,
-        startY: 0,
-        currentX: 0,
-        currentY: 0,
-        angle: 0,
-        distance: 0
-    };
-
-    // Arka plandaki penguenler (her zaman uzakta)
-    const backgroundPenguins = [];
-    for (let i = 0; i < 15; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const distance = 800 + Math.random() * 400;
-        backgroundPenguins.push({
-            x: Math.cos(angle) * distance,
-            y: Math.sin(angle) * distance,
-            size: 20 + Math.random() * 10
-        });
-    }
-
-    // Dağlar
-    const mountains = [];
-    for (let i = 0; i < 12; i++) {
-        const angle = (i / 12) * Math.PI * 2;
-        const distance = 1500 + Math.random() * 500;
-        mountains.push({
-            x: Math.cos(angle) * distance,
-            y: Math.sin(angle) * distance,
-            height: 200 + Math.random() * 200,
-            width: 300 + Math.random() * 200
-        });
-    }
-
-    // Ses sistemi
-    function initAudio() {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    <script>
+        let scene, camera, renderer, penguin, ground;
+        let otherPenguinsGroup;
+        let joystickManager;
+        let moveForward = 0;
+        let rotateY = 0;
+        let isGameActive = false;
         
-        // Rüzgar sesi (beyaz gürültü + düşük frekans filtre)
-        const windBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 2, audioContext.sampleRate);
-        const windData = windBuffer.getChannelData(0);
-        for (let i = 0; i < windData.length; i++) {
-            windData[i] = (Math.random() * 2 - 1) * 0.1;
+        // PWA Service Worker Kaydı
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
         }
-        
-        windSound = audioContext.createBufferSource();
-        windSound.buffer = windBuffer;
-        windSound.loop = true;
-        
-        const windFilter = audioContext.createBiquadFilter();
-        windFilter.type = 'lowpass';
-        windFilter.frequency.value = 400;
-        
-        const windGain = audioContext.createGain();
-        windGain.gain.value = 0.15;
-        
-        windSound.connect(windFilter);
-        windFilter.connect(windGain);
-        windGain.connect(audioContext.destination);
-        windSound.start();
 
-        // Yürüyüş sesi
-        createWalkSound();
-    }
-
-    function createWalkSound() {
-        const walkBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.3, audioContext.sampleRate);
-        const walkData = walkBuffer.getChannelData(0);
-        for (let i = 0; i < walkData.length; i++) {
-            walkData[i] = (Math.random() * 2 - 1) * 0.3 * Math.exp(-i / (audioContext.sampleRate * 0.1));
-        }
-        
-        walkSound = audioContext.createBufferSource();
-        walkSound.buffer = walkBuffer;
-        walkSound.loop = true;
-        
-        const walkGain = audioContext.createGain();
-        walkGain.gain.value = 0;
-        
-        walkSound.connect(walkGain);
-        walkGain.connect(audioContext.destination);
-        walkSound.start();
-        
-        player.walkGain = walkGain;
-    }
-
-    // Joystick kontrolü
-    function handleJoystickStart(e) {
-        e.preventDefault();
-        const touch = e.touches ? e.touches[0] : e;
-        const rect = joystickContainer.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        
-        joystick.active = true;
-        joystick.startX = centerX;
-        joystick.startY = centerY;
-        updateJoystick(touch.clientX, touch.clientY);
-    }
-
-    function handleJoystickMove(e) {
-        if (!joystick.active) return;
-        e.preventDefault();
-        const touch = e.touches ? e.touches[0] : e;
-        updateJoystick(touch.clientX, touch.clientY);
-    }
-
-    function handleJoystickEnd(e) {
-        e.preventDefault();
-        joystick.active = false;
-        joystick.distance = 0;
-        joystickStick.style.transform = 'translate(-50%, -50%)';
-    }
-
-    function updateJoystick(x, y) {
-        const dx = x - joystick.startX;
-        const dy = y - joystick.startY;
-        const distance = Math.min(Math.sqrt(dx * dx + dy * dy), 45);
-        const angle = Math.atan2(dy, dx);
-        
-        joystick.currentX = Math.cos(angle) * distance;
-        joystick.currentY = Math.sin(angle) * distance;
-        joystick.angle = angle;
-        joystick.distance = distance / 45;
-        
-        joystickStick.style.transform = `translate(calc(-50% + ${joystick.currentX}px), calc(-50% + ${joystick.currentY}px))`;
-    }
-
-    // Joystick event listeners
-    joystickContainer.addEventListener('touchstart', handleJoystickStart);
-    joystickContainer.addEventListener('mousedown', handleJoystickStart);
-    document.addEventListener('touchmove', handleJoystickMove);
-    document.addEventListener('mousemove', handleJoystickMove);
-    document.addEventListener('touchend', handleJoystickEnd);
-    document.addEventListener('mouseup', handleJoystickEnd);
-
-    // Oyunu başlat
-    startBtn.addEventListener('click', () => {
-        startScreen.classList.add('hidden');
-        joystickContainer.classList.remove('hidden');
-        gameStarted = true;
-        initAudio();
-        gameLoop();
-    });
-
-    // Penguen çiz
-    function drawPenguin(x, y, size, angle = 0) {
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(angle);
-        
-        // Gölge
-        ctx.fillStyle = 'rgba(0,0,0,0.2)';
-        ctx.beginPath();
-        ctx.ellipse(0, size * 0.4, size * 0.3, size * 0.15, 0, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Vücut
-        ctx.fillStyle = '#1a1a1a';
-        ctx.beginPath();
-        ctx.ellipse(0, 0, size * 0.35, size * 0.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Karın
-        ctx.fillStyle = '#f5f5f5';
-        ctx.beginPath();
-        ctx.ellipse(0, size * 0.05, size * 0.25, size * 0.35, 0, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Kanatlar
-        ctx.fillStyle = '#1a1a1a';
-        ctx.beginPath();
-        ctx.ellipse(-size * 0.3, 0, size * 0.12, size * 0.3, -0.3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.ellipse(size * 0.3, 0, size * 0.12, size * 0.3, 0.3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Kafa
-        ctx.fillStyle = '#1a1a1a';
-        ctx.beginPath();
-        ctx.arc(0, -size * 0.4, size * 0.25, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Gaga
-        ctx.fillStyle = '#ff6b35';
-        ctx.beginPath();
-        ctx.moveTo(0, -size * 0.35);
-        ctx.lineTo(size * 0.15, -size * 0.3);
-        ctx.lineTo(0, -size * 0.25);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Gözler
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(-size * 0.08, -size * 0.45, size * 0.08, 0, Math.PI * 2);
-        ctx.arc(size * 0.08, -size * 0.45, size * 0.08, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.fillStyle = '#1a1a1a';
-        ctx.beginPath();
-        ctx.arc(-size * 0.08, -size * 0.45, size * 0.04, 0, Math.PI * 2);
-        ctx.arc(size * 0.08, -size * 0.45, size * 0.04, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.restore();
-    }
-
-    // Dağ çiz
-    function drawMountain(x, y, width, height) {
-        const gradient = ctx.createLinearGradient(x, y - height, x, y);
-        gradient.addColorStop(0, '#d4dfe6');
-        gradient.addColorStop(0.5, '#b8c5cf');
-        gradient.addColorStop(1, '#9eaab5');
-        
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.moveTo(x - width / 2, y);
-        ctx.lineTo(x, y - height);
-        ctx.lineTo(x + width / 2, y);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Kar tepe
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.beginPath();
-        ctx.moveTo(x - width * 0.15, y - height * 0.7);
-        ctx.lineTo(x, y - height);
-        ctx.lineTo(x + width * 0.15, y - height * 0.7);
-        ctx.closePath();
-        ctx.fill();
-    }
-
-    // Kar taneleri
-    const snowflakes = Array.from({ length: 50 }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 3 + 1,
-        speed: Math.random() * 0.5 + 0.2
-    }));
-
-    // Oyun döngüsü
-    function gameLoop() {
-        if (!gameStarted) return;
-        
-        // Joystick'ten hareket hesapla
-        if (joystick.distance > 0.1) {
-            const targetAngle = joystick.angle - Math.PI / 2;
-            let angleDiff = targetAngle - player.angle;
+        function startGame(useJoystick) {
+            document.getElementById('start-screen').style.display = 'none';
+            isGameActive = true;
+            init3D();
             
-            // Açı farkını normalize et (-PI ile PI arası)
-            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-            
-            player.angle += angleDiff * player.rotationSpeed;
-            player.speed = joystick.distance * player.maxSpeed;
-            
-            // Yürüyüş sesi
-            if (player.walkGain) {
-                player.walkGain.gain.value = joystick.distance * 0.2;
+            if (useJoystick) {
+                document.getElementById('joystick-zone').style.display = 'block';
+                setupJoystick();
+            } else {
+                // Klavye kontrolleri fallback
+                document.addEventListener('keydown', (e) => {
+                    if(e.key === "ArrowUp") moveForward = 0.1;
+                    if(e.key === "ArrowLeft") rotateY = 0.05;
+                    if(e.key === "ArrowRight") rotateY = -0.05;
+                });
+                document.addEventListener('keyup', (e) => {
+                    moveForward = 0; rotateY = 0;
+                });
             }
-        } else {
-            player.speed *= 0.9;
-            if (player.walkGain) {
-                player.walkGain.gain.value *= 0.9;
+            animate();
+        }
+
+        function init3D() {
+            scene = new THREE.Scene();
+            // Sis efekti: Sonsuzluk hissi için en önemli kısım
+            scene.background = new THREE.Color(0xdbe4eb);
+            scene.fog = new THREE.FogExp2(0xdbe4eb, 0.02);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // Işıklandırma
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(10, 20, 10);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Zemin (Sonsuz Kar)
+            const geometry = new THREE.PlaneGeometry(1000, 1000);
+            const material = new THREE.MeshPhongMaterial({ color: 0xffffff });
+            ground = new THREE.Mesh(geometry, material);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Ana Karakter (Penguen - Soyut/Low Poly)
+            penguin = createPenguin();
+            penguin.position.y = 0;
+            scene.add(penguin);
+
+            // Uzaktaki Dağlar (Rastgele Piramitler)
+            createMountains();
+
+            // Diğer Penguenler (Arkada bekleyenler)
+            createMiragePenguins();
+
+            // Kamera Başlangıç Pozisyonu (Arkadan bakış)
+            updateCamera();
+        }
+
+        function createPenguin() {
+            const group = new THREE.Group();
+            
+            // Gövde
+            const bodyGeo = new THREE.CapsuleGeometry(0.5, 1, 4, 8);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x111111 }); // Siyah
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.75;
+            body.castShadow = true;
+            
+            // Göbek (Beyazlık)
+            const bellyGeo = new THREE.CapsuleGeometry(0.4, 0.8, 4, 8);
+            const bellyMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const belly = new THREE.Mesh(bellyGeo, bellyMat);
+            belly.position.set(0, 0.75, 0.15); // Biraz öne çıkar
+            
+            group.add(body);
+            group.add(belly);
+            return group;
+        }
+
+        function createMountains() {
+            for(let i=0; i<20; i++) {
+                const h = Math.random() * 30 + 10;
+                const geo = new THREE.ConeGeometry(Math.random() * 20 + 10, h, 4);
+                const mat = new THREE.MeshPhongMaterial({ color: 0xf0f0f0 });
+                const mesh = new THREE.Mesh(geo, mat);
+                
+                // Rastgele uzak pozisyonlar
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 80 + Math.random() * 50;
+                mesh.position.set(Math.cos(angle)*dist, h/2, Math.sin(angle)*dist);
+                scene.add(mesh);
+            }
+        }
+
+        function createMiragePenguins() {
+            otherPenguinsGroup = new THREE.Group();
+            // Arkada bir grup penguen
+            for(let i=0; i<5; i++) {
+                const p = createPenguin();
+                p.scale.set(0.8, 0.8, 0.8);
+                p.position.set((i-2)*2, 0, -30); // Oyuncunun arkasında (Z negatif)
+                otherPenguinsGroup.add(p);
+            }
+            scene.add(otherPenguinsGroup);
+        }
+
+        function setupJoystick() {
+            const zone = document.getElementById('joystick-zone');
+            joystickManager = nipplejs.create({
+                zone: zone,
+                mode: 'static',
+                position: { left: '50%', top: '50%' },
+                color: 'white',
+                size: 100,
+                fadeTime: 250 // Şeffaf premium hissi
+            });
+
+            joystickManager.on('move', function (evt, data) {
+                if(data && data.vector) {
+                    // Y eksenindeki hareket ileri gitmeyi, X ekseni dönmeyi sağlar
+                    moveForward = Math.max(0, data.vector.y) * 0.15; // Geri vites yok, sadece ileri
+                    rotateY = -data.vector.x * 0.05;
+                }
+            });
+
+            joystickManager.on('end', function () {
+                moveForward = 0;
+                rotateY = 0;
+            });
+        }
+
+        function updateCamera() {
+            // Kamera penguenin arkasında ve biraz yukarısında
+            const relativeOffset = new THREE.Vector3(0, 3, -6); // Arkasında
+            const cameraOffset = relativeOffset.applyMatrix4(penguin.matrixWorld);
+            
+            camera.position.lerp(cameraOffset, 0.1); // Yumuşak takip
+            camera.lookAt(penguin.position);
+        }
+
+        function checkMirageLogic() {
+            // Eğer oyuncu arkasını dönüp diğer penguenlere gitmeye çalışırsa
+            // Oyuncu ile diğer grup arasındaki mesafeyi ölç
+            const dist = penguin.position.distanceTo(otherPenguinsGroup.position);
+            
+            // Eğer yaklaşıyorsa (mesela 40 birimden yakınsa)
+            if (dist < 40) {
+                // Diğer penguenleri oyuncunun baktığı vektör yönünde uzaklaştır
+                // Bu sonsuz kaçış döngüsünü yaratır
+                const fleeDir = new THREE.Vector3().subVectors(otherPenguinsGroup.position, penguin.position).normalize();
+                otherPenguinsGroup.position.add(fleeDir.multiplyScalar(moveForward * 1.2)); // Oyuncudan daha hızlı kaçarlar
+                
+                document.getElementById('message').style.opacity = 1;
+            } else {
+                document.getElementById('message').style.opacity = 0;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if(isGameActive) {
+                // Hareket
+                penguin.rotation.y += rotateY;
+                penguin.translateZ(moveForward);
+
+                // Zemin takibi (Sonsuz zemin illüzyonu)
+                ground.position.x = penguin.position.x;
+                ground.position.z = penguin.position.z;
+
+                checkMirageLogic();
+                updateCamera();
+                renderer.render(scene, camera);
             }
         }
         
-        // Oyuncu hareketi
-        player.x += Math.cos(player.angle + Math.PI / 2) * player.speed;
-        player.y += Math.sin(player.angle + Math.PI / 2) * player.speed;
-        
-        // Arka plan penguenleri oyuncudan kaçsın
-        backgroundPenguins.forEach(penguin => {
-            const dx = penguin.x - player.x;
-            const dy = penguin.y - player.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist < 1000) {
-                const pushX = (dx / dist) * 2;
-                const pushY = (dy / dist) * 2;
-                penguin.x += pushX;
-                penguin.y += pushY;
-            }
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         });
-        
-        // Çizim
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Arka plan degradesi
-        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-        gradient.addColorStop(0, '#c8d5e0');
-        gradient.addColorStop(0.6, '#e8eef2');
-        gradient.addColorStop(1, '#f5f8fa');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Kar taneleri
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        snowflakes.forEach(flake => {
-            ctx.beginPath();
-            ctx.arc(flake.x, flake.y, flake.size, 0, Math.PI * 2);
-            ctx.fill();
-            
-            flake.y += flake.speed;
-            if (flake.y > canvas.height) {
-                flake.y = -10;
-                flake.x = Math.random() * canvas.width;
-            }
-        });
-        
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height * 0.7;
-        
-        // Dağları çiz (uzaktan yakına)
-        mountains.sort((a, b) => {
-            const distA = Math.sqrt((a.x - player.x) ** 2 + (a.y - player.y) ** 2);
-            const distB = Math.sqrt((b.x - player.x) ** 2 + (b.y - player.y) ** 2);
-            return distB - distA;
-        }).forEach(mountain => {
-            const relX = mountain.x - player.x;
-            const relY = mountain.y - player.y;
-            const screenX = centerX + relX * 0.15;
-            const screenY = centerY + relY * 0.15;
-            
-            if (screenX > -300 && screenX < canvas.width + 300) {
-                drawMountain(screenX, screenY, mountain.width, mountain.height);
-            }
-        });
-        
-        // Arka plan penguenleri çiz
-        backgroundPenguins.forEach(penguin => {
-            const relX = penguin.x - player.x;
-            const relY = penguin.y - player.y;
-            const dist = Math.sqrt(relX * relX + relY * relY);
-            const scale = 1000 / (dist + 500);
-            
-            const screenX = centerX + relX * scale * 0.5;
-            const screenY = centerY + relY * scale * 0.5;
-            
-            if (screenX > -100 && screenX < canvas.width + 100 && screenY > -100 && screenY < canvas.height + 100) {
-                const angle = Math.atan2(relY, relX) - Math.PI / 2;
-                drawPenguin(screenX, screenY, penguin.size * scale, angle);
-            }
-        });
-        
-        // Ana penguen (oyuncu) - GTA tarzı arkadan görünüm
-        drawPenguin(centerX, centerY, 40, 0);
-        
-        requestAnimationFrame(gameLoop);
-    }
-
-    // Service Worker kaydı (PWA)
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
-</script>
-```
-
+    </script>
 </body>
 </html>
