@@ -1,0 +1,9 @@
+{
+  "name": "Nihilist Penguin",
+  "short_name": "Penguin",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": []
+}
