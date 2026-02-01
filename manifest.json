@@ -1,17 +1,15 @@
 {
-“name”: “Nihilist Penguen”,
-“short_name”: “Penguen”,
-“description”: “Sonsuz karlarda yalnız bir yürüyüş”,
-“start_url”: “/nihilist-penguin.html”,
-“display”: “standalone”,
-“background_color”: “#c8d5e0”,
-“theme_color”: “#c8d5e0”,
-“orientation”: “any”,
-“icons”: [
-{
-“src”: “data:image/svg+xml,%3Csvg xmlns=‘http://www.w3.org/2000/svg’ viewBox=‘0 0 100 100’%3E%3Ccircle cx=‘50’ cy=‘50’ r=‘50’ fill=’%23667eea’/%3E%3Ctext x=‘50’ y=‘70’ font-size=‘60’ text-anchor=‘middle’%3E🐧%3C/text%3E%3C/svg%3E”,
-“sizes”: “512x512”,
-“type”: “image/svg+xml”
-}
-]
+  "name": "Nihilist Penguin",
+  "short_name": "Penguin",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2663/2663067.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
 }
