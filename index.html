@@ -12,30 +12,31 @@
         /* Giriş Ekranı UI */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.95);
+            background: rgba(240,245,255,0.95); /* Daha soğuk beyaz */
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 10;
         }
-        h1 { color: #333; font-size: 2rem; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 3px; text-align: center; }
-        p { text-align: center; padding: 0 20px; color: #666; font-size: 0.9rem; margin-bottom: 30px;}
+        h1 { color: #222; font-size: 1.8rem; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 4px; text-align: center; }
+        p { text-align: center; padding: 0 30px; color: #555; font-size: 0.85rem; margin-bottom: 40px; line-height: 1.5;}
         .btn {
-            padding: 15px 30px; border: 2px solid #333; background: transparent;
-            font-size: 1rem; cursor: pointer; transition: 0.3s;
-            color: #333; font-weight: bold;
+            padding: 15px 40px; border: 1px solid #222; background: rgba(255,255,255,0.5);
+            font-size: 0.9rem; cursor: pointer; transition: 0.3s; letter-spacing: 2px;
+            color: #222; font-weight: bold; text-transform: uppercase;
         }
-        .btn:hover { background: #333; color: #fff; }
+        .btn:hover { background: #222; color: #fff; border-color: #222; }
 
-        /* Joystick Alanı */
+        /* Joystick Alanı - Şeffaf Premium His */
         #joystick-zone {
-            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
-            width: 150px; height: 150px; z-index: 5; display: none;
+            position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+            width: 140px; height: 140px; z-index: 5; display: none;
+            border-radius: 50%; border: 2px solid rgba(255,255,255,0.3);
         }
         
         /* Mesaj */
         #message {
             position: absolute; top: 15%; width: 100%; text-align: center;
-            color: #555; opacity: 0; transition: opacity 2s; pointer-events: none;
-            font-weight: bold; font-size: 1.1rem; text-shadow: 0 0 10px rgba(255,255,255,0.8);
+            color: #444; opacity: 0; transition: opacity 2s; pointer-events: none;
+            font-weight: normal; font-size: 1rem; letter-spacing: 2px;
         }
     </style>
 </head>
@@ -43,11 +44,11 @@
 
     <div id="start-screen">
         <h1>Nihilist Loop</h1>
-        <p>Fotoğraftaki o sonsuzluk.<br>Varış noktası yok.</p>
-        <button class="btn" onclick="startGame(true)">Oyuna Başla (Joystick)</button>
+        <p>Ufuk çizgisi bir vaat değil, bir yanılsamadır. Ne kadar yürürsen yürü, başladığın yerdesin.</p>
+        <button class="btn" onclick="startGame(true)">Yürüyüşe Başla</button>
     </div>
 
-    <div id="message">Onlar sadece bir serap...</div>
+    <div id="message">Onlara asla ulaşamazsın...</div>
     <div id="joystick-zone"></div>
     <div id="canvas-container"></div>
 
@@ -76,157 +77,163 @@
                     setupJoystick();
                 }
                 animate();
-            } catch (err) {
-                alert("Hata: " + err.message);
-            }
+            } catch (err) { alert("Hata: " + err.message); }
         }
 
         function init3D() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xdbe4eb);
-            // Yoğun sis (atmosfer için kritik)
-            scene.fog = new THREE.FogExp2(0xdbe4eb, 0.02);
+            const fogColor = 0xdbe4eb; // Soğuk gri-mavi
+            scene.background = new THREE.Color(fogColor);
+            // SİS AZALTILDI: 0.02 -> 0.012
+            scene.fog = new THREE.FogExp2(fogColor, 0.012);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 600);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping; // Daha gerçekçi renkler
+            renderer.toneMappingExposure = 1.1;
             document.getElementById('canvas-container').innerHTML = ''; 
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            // Işıklandırma
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            // Işıklandırma (Soğuk Kar Atmosferi)
+            const ambientLight = new THREE.AmbientLight(0xcaddff, 0.5); // Hafif mavimsi ortam ışığı
             scene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-            dirLight.position.set(30, 50, 20); // Güneş gibi tepeden
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); // Güneş
+            dirLight.position.set(50, 80, 30); 
             dirLight.castShadow = true;
-            dirLight.shadow.mapSize.width = 2048; 
-            dirLight.shadow.mapSize.height = 2048;
-            dirLight.shadow.camera.top = 50;
-            dirLight.shadow.camera.bottom = -50;
-            dirLight.shadow.camera.left = -50;
-            dirLight.shadow.camera.right = 50;
+            // Gölge kalitesi ayarları
+            dirLight.shadow.mapSize.set(2048, 2048);
+            dirLight.shadow.camera.top = 100; dirLight.shadow.camera.bottom = -100;
+            dirLight.shadow.camera.left = -100; dirLight.shadow.camera.right = 100;
+            dirLight.shadow.bias = -0.0005;
             scene.add(dirLight);
 
-            // Sonsuz Zemin
-            const geometry = new THREE.PlaneGeometry(2000, 2000);
-            const material = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 5 });
+            // GERÇEKÇİ ZEMİN (KAR)
+            const geometry = new THREE.PlaneGeometry(2000, 2000, 64, 64);
+            // MeshStandardMaterial kullanarak ışığı daha iyi yansıtan mat bir yüzey
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, 
+                roughness: 1.0, // Tamamen mat (kar gibi)
+                metalness: 0.0 
+            });
             ground = new THREE.Mesh(geometry, material);
             ground.rotation.x = -Math.PI / 2;
             ground.receiveShadow = true;
             scene.add(ground);
 
-            // ANA KARAKTER: Gerçekçi Penguen
+            // ANA KARAKTER
             penguin = createDetailedPenguin();
             scene.add(penguin);
 
             // Çevre
-            createMountains();
+            createMountains(); // Dağ sayısı artırıldı
             createMiragePenguins();
             updateCamera();
         }
 
-        // --- İŞTE YENİ PENGUEN KODU ---
         function createDetailedPenguin() {
             const group = new THREE.Group();
-            group.scale.set(0.6, 0.6, 0.6); // Boyutu ayarla
+            group.scale.set(0.6, 0.6, 0.6);
 
-            // Materyaller
-            const blackMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-            const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
-            const orangeMat = new THREE.MeshStandardMaterial({ color: 0xff9f00, roughness: 0.7 });
+            const blackMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
+            const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.9 });
+            const orangeMat = new THREE.MeshStandardMaterial({ color: 0xff9100, roughness: 0.7 });
 
-            // 1. Gövde (Yumurta şekli verilmiş küre)
-            const bodyGeo = new THREE.SphereGeometry(1, 16, 16);
-            bodyGeo.scale(1, 1.6, 0.9); // Yükseklik ve basıklık ayarı
+            // Gövde
+            const bodyGeo = new THREE.SphereGeometry(1, 24, 24);
+            bodyGeo.scale(1, 1.55, 0.9);
             const body = new THREE.Mesh(bodyGeo, blackMat);
             body.position.y = 1.6;
             body.castShadow = true;
             group.add(body);
 
-            // 2. Beyaz Göbek (Öne yapıştırılmış yassı küre)
-            const bellyGeo = new THREE.SphereGeometry(0.85, 16, 16);
-            bellyGeo.scale(1, 1.5, 0.4);
+            // Göbek
+            const bellyGeo = new THREE.SphereGeometry(0.88, 24, 24);
+            bellyGeo.scale(1, 1.45, 0.5);
             const belly = new THREE.Mesh(bellyGeo, whiteMat);
-            belly.position.set(0, 1.5, 0.45);
+            belly.position.set(0, 1.5, 0.4);
             group.add(belly);
 
-            // 3. Kafa
-            const headGeo = new THREE.SphereGeometry(0.6, 16, 16);
+            // Kafa
+            const headGeo = new THREE.SphereGeometry(0.55, 24, 24);
             const head = new THREE.Mesh(headGeo, blackMat);
-            head.position.set(0, 3, 0);
+            head.position.set(0, 2.9, 0);
             head.castShadow = true;
             group.add(head);
 
-            // 4. Gaga (Koni)
-            const beakGeo = new THREE.ConeGeometry(0.15, 0.5, 8);
+            // Gaga
+            const beakGeo = new THREE.ConeGeometry(0.12, 0.4, 16);
             const beak = new THREE.Mesh(beakGeo, orangeMat);
-            beak.rotation.x = Math.PI / 2; // Öne baksın
-            beak.position.set(0, 3, 0.6);
+            beak.rotation.x = Math.PI / 2;
+            beak.position.set(0, 2.9, 0.55);
             group.add(beak);
 
-            // 5. Kanatlar (Yüzgeçler)
-            const flipperGeo = new THREE.SphereGeometry(0.3, 12, 8);
-            flipperGeo.scale(0.3, 2.5, 1); // Uzun ve yassı
+            // --- KOLLAR (YÜZGEÇLER) DÜZELTİLDİ ---
+            const flipperGeo = new THREE.SphereGeometry(0.25, 16, 16);
+            flipperGeo.scale(0.3, 2.2, 0.8);
             
             const flipperLeft = new THREE.Mesh(flipperGeo, blackMat);
-            flipperLeft.position.set(1, 1.8, 0);
-            flipperLeft.rotation.z = -Math.PI / 12;
+            flipperLeft.position.set(0.95, 1.7, 0.1);
+            // Aşağı ve hafifçe geriye doğru doğal duruş
+            flipperLeft.rotation.set(Math.PI / 16, 0, -Math.PI / 24); 
             flipperLeft.castShadow = true;
             group.add(flipperLeft);
 
             const flipperRight = new THREE.Mesh(flipperGeo, blackMat);
-            flipperRight.position.set(-1, 1.8, 0);
-            flipperRight.rotation.z = Math.PI / 12;
+            flipperRight.position.set(-0.95, 1.7, 0.1);
+            // Simetrik duruş
+            flipperRight.rotation.set(Math.PI / 16, 0, Math.PI / 24);
             flipperRight.castShadow = true;
             group.add(flipperRight);
+            // ------------------------------------
 
-            // 6. Ayaklar
-            const footGeo = new THREE.SphereGeometry(0.3, 8, 8);
-            footGeo.scale(1, 0.4, 1.5); // Yassı ve uzun
-            
+            // Ayaklar
+            const footGeo = new THREE.SphereGeometry(0.25, 16, 16);
+            footGeo.scale(1.2, 0.5, 1.8);
             const footLeft = new THREE.Mesh(footGeo, orangeMat);
-            footLeft.position.set(0.4, 0.2, 0.3);
+            footLeft.position.set(0.4, 0.15, 0.2);
             footLeft.castShadow = true;
             group.add(footLeft);
-
             const footRight = new THREE.Mesh(footGeo, orangeMat);
-            footRight.position.set(-0.4, 0.2, 0.3);
+            footRight.position.set(-0.4, 0.15, 0.2);
             footRight.castShadow = true;
             group.add(footRight);
 
             return group;
         }
-        // ---------------------------
 
         function createMountains() {
-            for(let i=0; i<25; i++) {
-                const h = Math.random() * 50 + 20;
-                // Daha sivri, dağ gibi görünen geometri
-                const geo = new THREE.ConeGeometry(Math.random() * 40 + 20, h, 5); 
-                const mat = new THREE.MeshPhongMaterial({ color: 0xeaeaea, flatShading: true });
+            // DAĞ SAYISI ARTIRILDI: 25 -> 45
+            for(let i=0; i<45; i++) {
+                const h = Math.random() * 60 + 30; // Daha yüksek dağlar
+                const geo = new THREE.ConeGeometry(Math.random() * 50 + 20, h, 6); 
+                // Dağlara hafif mavi-beyaz tonu ver
+                const mat = new THREE.MeshPhongMaterial({ color: 0xe0e8f0, flatShading: true, shininess: 0 });
                 const mesh = new THREE.Mesh(geo, mat);
                 
                 const angle = Math.random() * Math.PI * 2;
-                const dist = 150 + Math.random() * 150;
-                mesh.position.set(Math.cos(angle)*dist, h/2 - 5, Math.sin(angle)*dist);
-                // Hafif rastgele eğim ver ki doğal dursun
-                mesh.rotation.x = (Math.random() - 0.5) * 0.2;
+                // Mesafeyi biraz açtık çünkü sis azaldı
+                const dist = 180 + Math.random() * 200; 
+                mesh.position.set(Math.cos(angle)*dist, h/2 - 8, Math.sin(angle)*dist);
+                mesh.rotation.y = Math.random() * Math.PI;
+                mesh.scale.set(1 + Math.random()*0.5, 1, 1 + Math.random()*0.5);
                 scene.add(mesh);
             }
         }
 
         function createMiragePenguins() {
             otherPenguinsGroup = new THREE.Group();
-            for(let i=0; i<5; i++) {
-                // Aynı detaylı penguenden kopyala
+            for(let i=0; i<7; i++) {
                 const p = createDetailedPenguin();
-                // Biraz daha küçük ve uzakta görünsünler
                 p.scale.set(0.5, 0.5, 0.5);
-                p.position.set((i-2)*5 + Math.random()*2, 0, -60 - Math.random()*20); 
-                p.rotation.y = Math.PI + (Math.random()-0.5); // Bize doğru baksınlar
+                // Başlangıçta tam arkada (Z negatif) duruyorlar
+                // Dağınık bir grup halinde
+                p.position.set((i-3)*4 + Math.random()*2, 0, -70 - Math.random()*15); 
+                // Rastgele yönlere baksınlar, ilgisizce
+                p.rotation.y = Math.random() * Math.PI * 2; 
                 otherPenguinsGroup.add(p);
             }
             scene.add(otherPenguinsGroup);
@@ -237,14 +244,14 @@
                 zone: document.getElementById('joystick-zone'),
                 mode: 'static',
                 position: { left: '50%', top: '50%' },
-                color: '#ffffff',
+                color: 'rgba(255,255,255,0.8)', // Daha şeffaf beyaz
                 size: 120,
-                fadeTime: 300
+                fadeTime: 200
             });
 
             joystickManager.on('move', (evt, data) => {
                 if(data?.vector) {
-                    moveForward = Math.max(0, data.vector.y) * 0.25; 
+                    moveForward = Math.max(0, data.vector.y) * 0.28; 
                     rotateY = -data.vector.x * 0.07;
                 }
             });
@@ -254,26 +261,34 @@
 
         function checkMirageLogic() {
             const dist = penguin.position.distanceTo(otherPenguinsGroup.position);
-            if (dist < 60) {
+            
+            // Eğer 80 birimden fazla yaklaşırsan kaçmaya başlarlar
+            if (dist < 80) {
                 const fleeDir = new THREE.Vector3().subVectors(otherPenguinsGroup.position, penguin.position).normalize();
                 fleeDir.y = 0; 
-                // Paradoks hızı: Sen durursan yavaşça, koşarsan hızla uzaklaşırlar
-                const escapeSpeed = moveForward > 0 ? moveForward * 1.15 : 0.08;
+                
+                // PARADOKS HIZI: Senin hızının %15 fazlası. Asla yetişemezsin.
+                // Sen durursan onlar da çok yavaşlar (serap etkisi)
+                const escapeSpeed = moveForward > 0 ? moveForward * 1.15 : 0.02;
+                
                 otherPenguinsGroup.position.add(fleeDir.multiplyScalar(escapeSpeed));
-                // Hep sana dönük olsunlar, daha ürkütücü
-                otherPenguinsGroup.lookAt(new THREE.Vector3(penguin.position.x, 0, penguin.position.z)); 
-                document.getElementById('message').style.opacity = 1;
+                
+                // Kaçarken sana dönüp baksınlar (isteğe bağlı, şu an kapalı)
+                // otherPenguinsGroup.lookAt(new THREE.Vector3(penguin.position.x, 0, penguin.position.z)); 
+
+                document.getElementById('message').style.opacity = 0.8;
             } else {
                 document.getElementById('message').style.opacity = 0;
             }
         }
 
         function updateCamera() {
-            // Kamera biraz daha alçak ve yakın, daha dramatik
-            const relativeOffset = new THREE.Vector3(0, 3.5, -7); 
+            // Kamera açısı: Biraz daha alçak ve dramatik
+            const relativeOffset = new THREE.Vector3(0, 3.2, -7.5); 
             const cameraOffset = relativeOffset.applyMatrix4(penguin.matrixWorld);
             camera.position.lerp(cameraOffset, 0.08);
-            camera.lookAt(new THREE.Vector3(penguin.position.x, 2, penguin.position.z));
+            // Penguenin biraz üzerine bak ki ufku görelim
+            camera.lookAt(new THREE.Vector3(penguin.position.x, 2.5, penguin.position.z));
         }
 
         function animate() {
@@ -281,13 +296,18 @@
             if(isGameActive) {
                 penguin.rotation.y += rotateY;
                 penguin.translateZ(moveForward);
-                // Hafif sallanma efekti (yürüyormuş gibi)
-                if(moveForward > 0) {
-                    penguin.rotation.z = Math.sin(Date.now() * 0.01) * 0.05;
+                
+                // Yürüyüş efekti (Sallanma)
+                if(moveForward > 0.01) {
+                    const walkSpeed = Date.now() * 0.008;
+                    penguin.rotation.z = Math.sin(walkSpeed) * 0.04; // Gövde sallanması
+                    penguin.position.y = Math.abs(Math.sin(walkSpeed*2)) * 0.05; // Hafif zıplama
                 } else {
                     penguin.rotation.z = THREE.MathUtils.lerp(penguin.rotation.z, 0, 0.1);
+                    penguin.position.y = THREE.MathUtils.lerp(penguin.position.y, 0, 0.1);
                 }
 
+                // Sonsuz zemin hilesi
                 ground.position.x = penguin.position.x;
                 ground.position.z = penguin.position.z;
 
