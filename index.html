@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nihilist Penguin</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ffffff">
+
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #fff;
+  font-family: -apple-system, BlinkMacSystemFont;
+}
+
+#joystick {
+  position: fixed;
+  bottom: 30px;
+  left: 30px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.4);
+}
+
+#stick {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60px;
+  height: 60px;
+  background: rgba(255,255,255,0.6);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+</style>
+</head>
+<body>
+
+<div id="joystick">
+  <div id="stick"></div>
+</div>
+
+<audio id="wind" src="wind.mp3" loop></audio>
+<audio id="step" src="snowstep.mp3" loop></audio>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
+
+<script>
+/* SCENE */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+
+/* CAMERA (GTA-style) */
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(0, 2, 5);
+
+/* RENDERER */
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+/* LIGHT */
+scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 1));
+
+/* GROUND (sonsuz hissi) */
+const groundTex = new THREE.TextureLoader().load("snow.jpg");
+groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+groundTex.repeat.set(100,100);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(1000,1000),
+  new THREE.MeshStandardMaterial({ map: groundTex })
+);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+/* PENGUIN */
+const penguin = new THREE.Mesh(
+  new THREE.CapsuleGeometry(0.5,1,8,16),
+  new THREE.MeshStandardMaterial({color:0x000000})
+);
+penguin.position.y = 1;
+scene.add(penguin);
+
+/* SOUND */
+const wind = document.getElementById("wind");
+const step = document.getElementById("step");
+wind.volume = 0.4;
+wind.play();
+
+/* JOYSTICK */
+let moveX = 0, moveZ = 0;
+const stick = document.getElementById("stick");
+const joy = document.getElementById("joystick");
+
+joy.addEventListener("touchmove", e => {
+  const rect = joy.getBoundingClientRect();
+  const x = e.touches[0].clientX - rect.left - 70;
+  const y = e.touches[0].clientY - rect.top - 70;
+
+  moveX = x / 50;
+  moveZ = y / 50;
+
+  stick.style.transform = `translate(${x}px, ${y}px)`;
+
+  if (!step.paused) return;
+  step.play();
+});
+
+joy.addEventListener("touchend", () => {
+  moveX = moveZ = 0;
+  stick.style.transform = "translate(-50%,-50%)";
+  step.pause();
+});
+
+/* LOOP */
+function animate(){
+  requestAnimationFrame(animate);
+
+  penguin.rotation.y -= moveX * 0.05;
+  penguin.translateZ(-moveZ * 0.1);
+
+  camera.position.lerp(
+    new THREE.Vector3(
+      penguin.position.x,
+      penguin.position.y + 2,
+      penguin.position.z + 5
+    ), 0.1
+  );
+  camera.lookAt(penguin.position);
+
+  renderer.render(scene,camera);
+}
+animate();
+
+/* RESIZE */
+addEventListener("resize", ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+/* PWA */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
