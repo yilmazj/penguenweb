@@ -21,7 +21,6 @@
             display: none; letter-spacing: 2px; font-variant-numeric: tabular-nums;
         }
 
-        /* GERİ DÖN BUTONU */
         #back-btn {
             position: absolute; top: 20px; left: 20px;
             pointer-events: auto; display: none; cursor: pointer;
@@ -32,7 +31,6 @@
         }
         #back-btn:hover { background: #fff; color: #000; }
 
-        /* GİRİŞ EKRANI */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(to bottom, #e0f0ff, #ffffff);
@@ -67,7 +65,6 @@
         }
         .start-btn:hover { background: #1a2a3a; color: #fff; transform: scale(1.05); }
 
-        /* GECE MODU STİLLERİ */
         #start-screen.night-mode { background: linear-gradient(to bottom, #0f1c2e, #1a2a40); }
         #start-screen.night-mode h1 { color: #ffffff; }
         #start-screen.night-mode .setting-label { color: #cccccc; }
@@ -151,7 +148,7 @@
         let weatherMode = 'auto';
         let controlSide = 'left';
 
-        // --- UI FONKSİYONLARI ---
+        // --- UI FONKSİYONLARI (DEĞİŞMEDİ) ---
         function setWeatherPref(mode) {
             weatherMode = mode;
             document.querySelectorAll('#weather-toggles .toggle-btn').forEach(b => b.classList.remove('active'));
@@ -233,6 +230,7 @@
             animate();
         }
 
+        // --- ZEMİN OLUŞTURMA (DEĞİŞMEDİ) ---
         function createSnowTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 1024; canvas.height = 1024;
@@ -355,11 +353,11 @@
             return group;
         }
 
-        // --- YENİLENMİŞ DAĞLAR (ALP TARZI - ROCKY & SNOWY MIX) ---
+        // --- YENİLENMİŞ DAĞLAR (DAHA BÜYÜK, DAHA KARLI, DAHA YAKIN) ---
         function createMountainMesh() {
-            // Daha geniş taban, daha az sivri (Alp tarzı)
-            const r = Math.random() * 300 + 300; // Tabanı genişlettik
-            const h = Math.random() * 250 + 200; // Yüksekliği dengeledik
+            // Tabanı ve yüksekliği artırdık
+            const r = Math.random() * 400 + 400; 
+            const h = Math.random() * 400 + 300; 
             
             const geo = new THREE.ConeGeometry(r, h, 32, 16, true);
             const pos = geo.attributes.position;
@@ -367,37 +365,30 @@
             
             for (let j = 0; j < pos.count; j++) {
                 const y = pos.getY(j);
-                const normalizedH = (y + h/2) / h; // 0 (taban) -> 1 (zirve)
+                const normalizedH = (y + h/2) / h; 
 
-                // Alp dağları gibi dağınık, bozuk yüzey (Noise)
-                let noise = Math.sin(pos.getX(j)*0.02 + pos.getZ(j)*0.015) * 30;
-                noise += Math.cos(pos.getX(j)*0.08) * 10;
+                // Gürültüyü artırdık, daha çıkıntılı/eğimli
+                let noise = Math.sin(pos.getX(j)*0.03 + pos.getZ(j)*0.025) * 50;
+                noise += Math.cos(pos.getX(j)*0.1) * 25;
                 
-                // Dağı deforme et
-                const displacement = noise * (1 - normalizedH * 0.3); // Zirve daha az bozulsun
+                const displacement = noise * (1 - normalizedH * 0.2);
                 const x = pos.getX(j);
                 const z = pos.getZ(j);
                 
-                // Hafif yamukluk ver
-                pos.setX(j, x + displacement * (x/r) + (Math.random()-0.5)*10);
-                pos.setZ(j, z + displacement * (z/r) + (Math.random()-0.5)*10);
+                pos.setX(j, x + displacement * (x/r) + (Math.random()-0.5)*15);
+                pos.setZ(j, z + displacement * (z/r) + (Math.random()-0.5)*15);
                 
-                // RENK AYARI: Aşağısı toprak/kaya, Yukarısı kar
                 const color = new THREE.Color();
-                
-                // Kar sınırı biraz rastgele olsun (dümdüz çizgi olmasın)
-                const snowLine = 0.45 + (Math.random() * 0.15); 
+                // Kar sınırını düşürdük, daha çok kar var
+                const snowLine = 0.25 + (Math.random() * 0.15); 
                 
                 if(normalizedH > snowLine) { 
-                    // Zirve (Kar)
-                    color.setHex(0xffffff);
+                    color.setHex(0xffffff); // Kar
                 } else {
-                    // Etekler (Koyu Gri / Kahverengi Kaya)
-                    // Alp kayaları genellikle gri-kahve tonlarındadır
                     const rockR = 0.3 + Math.random()*0.1;
                     const rockG = 0.28 + Math.random()*0.1;
                     const rockB = 0.25 + Math.random()*0.1;
-                    color.setRGB(rockR, rockG, rockB); 
+                    color.setRGB(rockR, rockG, rockB); // Kaya
                 }
                 colors.push(color.r, color.g, color.b);
             }
@@ -405,12 +396,8 @@
             geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
             geo.computeVertexNormals();
             
-            // Flat shading = true (Low poly estetiği için)
             const mat = new THREE.MeshStandardMaterial({ 
-                vertexColors: true, 
-                roughness: 0.95, 
-                metalness: 0.05, 
-                flatShading: true 
+                vertexColors: true, roughness: 0.95, metalness: 0.05, flatShading: true 
             });
             
             const mesh = new THREE.Mesh(geo, mat);
@@ -419,28 +406,28 @@
         }
 
         function initMountains() {
-            // Sayıyı ve aralığı ayarladık ki birbirlerinden çok kopuk durmasınlar
-            for(let i=0; i<30; i++) {
+            // Dağ sayısını artırdık (daha sık)
+            for(let i=0; i<40; i++) {
                 spawnMountain(Math.random() * 1000 - 500); 
             }
-            for(let i=0; i<30; i++) {
+            for(let i=0; i<40; i++) {
                 spawnMountain(500 + Math.random() * 1000); 
             }
         }
 
         function spawnMountain(zPos) {
             const mesh = createMountainMesh();
-            // X ekseninde biraz daha geniş alana yayılsın ama iç içe geçebilsinler
-            let xPos = (Math.random() - 0.5) * 2000;
-            if(Math.abs(xPos) < 300) xPos += 500 * (xPos > 0 ? 1 : -1); 
+            // X aralığını daralttık (birbirine daha yakın)
+            let xPos = (Math.random() - 0.5) * 1400; 
 
             const h = mesh.geometry.parameters.height;
-            // Dağları biraz daha aşağı gömdük ki tabanları tam oturmuş görünsün
-            mesh.position.set(xPos, -h/2 - 20, zPos); 
             
-            // Ölçek çeşitliliği
-            const s = 0.8 + Math.random() * 0.6;
+            // ÖLÇEK ARTIRILDI (Devasa dağlar)
+            const s = 2.5 + Math.random() * 2.0;
             mesh.scale.set(s,s,s);
+
+            // Y pozisyonunu yeni ölçeğe göre ayarla
+            mesh.position.set(xPos, -h*s/2 + 50, zPos); 
             
             scene.add(mesh);
             mountainObjects.push(mesh);
@@ -449,15 +436,17 @@
         function recycleMountains() {
             const pZ = penguin.position.z;
             mountainObjects.forEach(m => {
-                if (m.position.z < pZ - 500) { // Biraz daha arkada silinsin
+                if (m.position.z < pZ - 600) { 
                     m.position.z = pZ + 2000 + Math.random() * 500; 
-                    let xPos = (Math.random() - 0.5) * 2000;
-                    if(Math.abs(xPos) < 300) xPos += 500 * (xPos > 0 ? 1 : -1);
+                    // X aralığını daralttık (birbirine daha yakın)
+                    let xPos = (Math.random() - 0.5) * 1400;
                     m.position.x = xPos;
                     
-                    // Her recycle'da biraz scale değiştir ki monotonluk kırılsın
-                    const s = 0.8 + Math.random() * 0.6;
+                    // Yeni büyük ölçek
+                    const s = 2.5 + Math.random() * 2.0;
                     m.scale.set(s, s, s);
+                    const h = m.geometry.parameters.height;
+                    m.position.y = -h*s/2 + 50;
                 }
             });
         }
@@ -506,27 +495,26 @@
 
             ground.position.x = penguin.position.x;
             ground.position.z = penguin.position.z;
+            
+            // --- ZEMİN HAREKET HİSSİ (DÜZELTİLDİ) ---
             if (groundMaterial && groundMaterial.map) {
-                groundMaterial.map.offset.x = penguin.position.x * 0.005;
-                groundMaterial.map.offset.y = penguin.position.z * 0.005;
+                // Çarpanı artırarak zeminin daha hızlı kaymasını sağladık
+                groundMaterial.map.offset.x = penguin.position.x * 0.06; 
+                groundMaterial.map.offset.y = penguin.position.z * 0.06;
             }
 
             recycleMountains();
 
-            // --- YÜRÜYÜŞ DÜZELTME (FIX) ---
+            // --- YÜRÜYÜŞ HIZI (YAVAŞLATILDI) ---
             if(moveForward > 0.001) {
-                walkTime += 0.25; // Adım frekansını biraz hızlandırdık
+                walkTime += 0.08; // Hız düşürüldü (0.25'ten 0.08'e)
                 
-                // Ayaklar zeminle uyumlu olsun diye sinüs dalgasını tersledik
-                // ve vücudun sağa sola yalpalamasını (rotation.z) ayaklarla senkronize ettik.
                 const legSwing = Math.sin(walkTime) * 0.8; 
+                penguin.userData.legs.left.rotation.x = -legSwing;
+                penguin.userData.legs.right.rotation.x = legSwing;
                 
-                penguin.userData.legs.left.rotation.x = -legSwing; // Sol ayak
-                penguin.userData.legs.right.rotation.x = legSwing; // Sağ ayak
-                
-                // Paytak yürüyüş için gövde salınımı
                 penguin.rotation.z = Math.cos(walkTime) * 0.1; 
-                penguin.position.y = Math.abs(Math.sin(walkTime * 2)) * 0.1; // Zıplama efekti
+                penguin.position.y = Math.abs(Math.sin(walkTime * 2)) * 0.1;
             } else {
                 penguin.userData.legs.left.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.left.rotation.x, 0, 0.1);
                 penguin.userData.legs.right.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.right.rotation.x, 0, 0.1);
