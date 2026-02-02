@@ -148,7 +148,7 @@
         let weatherMode = 'auto';
         let controlSide = 'left';
 
-        // --- UI FONKSİYONLARI (DEĞİŞMEDİ) ---
+        // --- UI FONKSİYONLARI ---
         function setWeatherPref(mode) {
             weatherMode = mode;
             document.querySelectorAll('#weather-toggles .toggle-btn').forEach(b => b.classList.remove('active'));
@@ -223,6 +223,9 @@
                     init3D();
                     setupJoystick();
                 } catch (err) { alert("Hata: " + err.message); }
+            } else {
+                // Sahne zaten varsa, seçilen temayı uygula (Gece/Gündüz Fix)
+                updateSceneEnvironment();
             }
             
             isGameActive = true;
@@ -230,7 +233,40 @@
             animate();
         }
 
-        // --- ZEMİN OLUŞTURMA (DEĞİŞMEDİ) ---
+        // --- YENİ FONKSİYON: Sahne Temasını Güncelle ---
+        function updateSceneEnvironment() {
+            if (!scene) return;
+            const isNight = getRealWeather() === 'night';
+            let skyColor, fogDensity;
+            
+            if (isNight) {
+                skyColor = 0x050a14; fogDensity = 0.002;
+                if(!stars) createStars(); 
+                stars.visible = true;
+            } else {
+                skyColor = 0xcceeff; fogDensity = 0.0012;
+                if(stars) stars.visible = false;
+            }
+
+            scene.background.setHex(skyColor);
+            scene.fog.color.setHex(skyColor);
+            scene.fog.density = fogDensity;
+
+            // Işıkları güncelle
+            scene.children.forEach(child => {
+                if (child.isHemisphereLight) {
+                    child.color.setHex(skyColor);
+                    child.intensity = isNight ? 0.4 : 0.7;
+                }
+                if (child.isDirectionalLight) {
+                    child.color.setHex(isNight ? 0xaaccff : 0xffffff);
+                    child.intensity = isNight ? 1.0 : 1.8;
+                    child.position.y = isNight ? 80 : 150;
+                }
+            });
+            renderer.toneMappingExposure = isNight ? 1.8 : 1.1;
+        }
+
         function createSnowTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 1024; canvas.height = 1024;
@@ -252,14 +288,9 @@
 
         function init3D() {
             scene = new THREE.Scene();
-            const isNight = getRealWeather() === 'night';
-            let skyColor, fogDensity;
-            
-            if (isNight) {
-                skyColor = 0x050a14; fogDensity = 0.002; createStars();
-            } else {
-                skyColor = 0xcceeff; fogDensity = 0.0012;
-            }
+            // Varsayılan değerler
+            const skyColor = 0xcceeff; 
+            const fogDensity = 0.0012;
 
             scene.background = new THREE.Color(skyColor);
             scene.fog = new THREE.FogExp2(skyColor, fogDensity);
@@ -271,16 +302,16 @@
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = isNight ? 1.8 : 1.1;
+            renderer.toneMappingExposure = 1.1;
             renderer.outputColorSpace = THREE.SRGBColorSpace;
             
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            const hemiLight = new THREE.HemisphereLight(skyColor, 0xffffff, isNight ? 0.4 : 0.7);
+            const hemiLight = new THREE.HemisphereLight(skyColor, 0xffffff, 0.7);
             scene.add(hemiLight);
 
-            const dirLight = new THREE.DirectionalLight(isNight ? 0xaaccff : 0xffffff, isNight ? 1.0 : 1.8);
-            dirLight.position.set(100, isNight ? 80 : 150, 100); 
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.8);
+            dirLight.position.set(100, 150, 100); 
             dirLight.castShadow = true;
             dirLight.shadow.mapSize.set(4096, 4096);
             dirLight.shadow.camera.top = 500; dirLight.shadow.camera.bottom = -500;
@@ -298,12 +329,15 @@
             ground.receiveShadow = true;
             scene.add(ground);
 
-            penguin = createPenguinNoArms(isNight);
+            penguin = createPenguinNoArms(false);
             scene.add(penguin);
             
             initMountains();
-            createDenseColony(isNight);
+            createDenseColony(false);
             updateCamera();
+            
+            // İlk açılışta doğru temayı uygula
+            updateSceneEnvironment();
         }
 
         function createStars() {
@@ -353,9 +387,8 @@
             return group;
         }
 
-        // --- YENİLENMİŞ DAĞLAR (DAHA BÜYÜK, DAHA KARLI, DAHA YAKIN) ---
+        // --- GÜNCELLENMİŞ DAĞ YAPISI (UZAK, SIK ve İNİŞLİ ÇIKIŞLI) ---
         function createMountainMesh() {
-            // Tabanı ve yüksekliği artırdık
             const r = Math.random() * 400 + 400; 
             const h = Math.random() * 400 + 300; 
             
@@ -367,7 +400,6 @@
                 const y = pos.getY(j);
                 const normalizedH = (y + h/2) / h; 
 
-                // Gürültüyü artırdık, daha çıkıntılı/eğimli
                 let noise = Math.sin(pos.getX(j)*0.03 + pos.getZ(j)*0.025) * 50;
                 noise += Math.cos(pos.getX(j)*0.1) * 25;
                 
@@ -379,16 +411,15 @@
                 pos.setZ(j, z + displacement * (z/r) + (Math.random()-0.5)*15);
                 
                 const color = new THREE.Color();
-                // Kar sınırını düşürdük, daha çok kar var
                 const snowLine = 0.25 + (Math.random() * 0.15); 
                 
                 if(normalizedH > snowLine) { 
-                    color.setHex(0xffffff); // Kar
+                    color.setHex(0xffffff); 
                 } else {
                     const rockR = 0.3 + Math.random()*0.1;
                     const rockG = 0.28 + Math.random()*0.1;
                     const rockB = 0.25 + Math.random()*0.1;
-                    color.setRGB(rockR, rockG, rockB); // Kaya
+                    color.setRGB(rockR, rockG, rockB); 
                 }
                 colors.push(color.r, color.g, color.b);
             }
@@ -406,7 +437,7 @@
         }
 
         function initMountains() {
-            // Dağ sayısını artırdık (daha sık)
+            // İki tarafa dağ serpiştir
             for(let i=0; i<40; i++) {
                 spawnMountain(Math.random() * 1000 - 500); 
             }
@@ -417,17 +448,26 @@
 
         function spawnMountain(zPos) {
             const mesh = createMountainMesh();
-            // X aralığını daralttık (birbirine daha yakın)
-            let xPos = (Math.random() - 0.5) * 1400; 
+            
+            // --- DEĞİŞİKLİK BURADA: DAĞLAR UZAKTA OLSUN ---
+            // Yolun ortası (0 noktası) boş kalsın. Dağlar sağda ve solda başlasın.
+            // Sol Taraf: -2000 ile -500 arası
+            // Sağ Taraf: +500 ile +2000 arası
+            let xPos;
+            const side = Math.random() > 0.5 ? 1 : -1; // Rastgele sağ veya sol seç
+            xPos = side * (500 + Math.random() * 1500); // En az 500 birim uzakta
 
             const h = mesh.geometry.parameters.height;
-            
-            // ÖLÇEK ARTIRILDI (Devasa dağlar)
             const s = 2.5 + Math.random() * 2.0;
             mesh.scale.set(s,s,s);
 
-            // Y pozisyonunu yeni ölçeğe göre ayarla
-            mesh.position.set(xPos, -h*s/2 + 50, zPos); 
+            // --- İNİŞLİ ÇIKIŞLI FORM ---
+            // Dağların Y pozisyonunu daha agresif rastgele yapıyoruz.
+            // Bazılarını iyice gömüyoruz (-150'ye kadar), bazıları yukarıda.
+            // Bu dağların iç içe geçip farklı yükseltiler oluşturmasını sağlar.
+            const yOffset = -h*s/2 + (Math.random() * 200 - 50); 
+            
+            mesh.position.set(xPos, yOffset, zPos); 
             
             scene.add(mesh);
             mountainObjects.push(mesh);
@@ -438,15 +478,17 @@
             mountainObjects.forEach(m => {
                 if (m.position.z < pZ - 600) { 
                     m.position.z = pZ + 2000 + Math.random() * 500; 
-                    // X aralığını daralttık (birbirine daha yakın)
-                    let xPos = (Math.random() - 0.5) * 1400;
-                    m.position.x = xPos;
                     
-                    // Yeni büyük ölçek
+                    // Aynısını burada da uygula: Yolu aç
+                    const side = Math.random() > 0.5 ? 1 : -1;
+                    m.position.x = side * (500 + Math.random() * 1500);
+                    
                     const s = 2.5 + Math.random() * 2.0;
                     m.scale.set(s, s, s);
                     const h = m.geometry.parameters.height;
-                    m.position.y = -h*s/2 + 50;
+                    
+                    // İnişli çıkışlı form için rastgele Y
+                    m.position.y = -h*s/2 + (Math.random() * 200 - 50); 
                 }
             });
         }
@@ -496,18 +538,15 @@
             ground.position.x = penguin.position.x;
             ground.position.z = penguin.position.z;
             
-            // --- ZEMİN HAREKET HİSSİ (DÜZELTİLDİ) ---
             if (groundMaterial && groundMaterial.map) {
-                // Çarpanı artırarak zeminin daha hızlı kaymasını sağladık
                 groundMaterial.map.offset.x = penguin.position.x * 0.06; 
                 groundMaterial.map.offset.y = penguin.position.z * 0.06;
             }
 
             recycleMountains();
 
-            // --- YÜRÜYÜŞ HIZI (YAVAŞLATILDI) ---
             if(moveForward > 0.001) {
-                walkTime += 0.08; // Hız düşürüldü (0.25'ten 0.08'e)
+                walkTime += 0.08; 
                 
                 const legSwing = Math.sin(walkTime) * 0.8; 
                 penguin.userData.legs.left.rotation.x = -legSwing;
