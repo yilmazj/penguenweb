@@ -384,7 +384,7 @@
         }
 
         function createMountainMesh() {
-            const r = Math.random() * 300 + 300; // Biraz daha daraltıldı
+            const r = Math.random() * 300 + 300; 
             const h = Math.random() * 400 + 300; 
             const geo = new THREE.ConeGeometry(r, h, 32, 16, true);
             const pos = geo.attributes.position;
@@ -414,14 +414,9 @@
         }
 
         function initMountains() {
-            // BAŞLANGIÇ BÖLGESİNE DAĞ EKLE (Penguenin baktığı yer)
             for(let i=0; i<50; i++) {
-                // Z: 0 ile -500 arası (ön taraf), X: Yola yakın
                 spawnMountain(Math.random() * -500, 200 + Math.random() * 600);
             }
-
-            // GENEL DAĞ SAYISI İKİ KATINA ÇIKARILDI (300 -> 600 civarı toplam)
-            // VE DAHA SIKLAŞTIRILDI (X mesafesi 300 yerine 200'den başlıyor)
             for(let i=0; i<300; i++) {
                 spawnMountain(Math.random() * 1000 - 500, 200 + Math.random() * 800); 
             }
@@ -434,7 +429,6 @@
             const mesh = createMountainMesh();
             let xPos;
             const side = Math.random() > 0.5 ? 1 : -1; 
-            // Eğer override yoksa varsayılan sık aralığı kullan
             const range = xRangeOverride || (200 + Math.random() * 800);
             xPos = side * range;
 
@@ -443,6 +437,8 @@
             mesh.scale.set(s,s,s);
             const yOffset = -h*s/2 + (Math.random() * 200 - 50); 
             mesh.position.set(xPos, yOffset, zPos); 
+            // Rastgele bir Y rotasyonu ekle ki hep aynı yüzü dönük olmasın
+            mesh.rotation.y = Math.random() * Math.PI * 2;
             scene.add(mesh);
             mountainObjects.push(mesh);
         }
@@ -453,12 +449,16 @@
                 if (m.position.z < pZ - 600) { 
                     m.position.z = pZ + 2000 + Math.random() * 500; 
                     const side = Math.random() > 0.5 ? 1 : -1;
-                    // Dönüşte de sıkı aralık korunuyor
                     m.position.x = side * (200 + Math.random() * 800);
-                    const s = 2.5 + Math.random() * 2.0;
+                    
+                    // --- DEĞİŞEN SIRADAĞLAR İÇİN GÜNCELLEME ---
+                    // Dağ geri dönüştüğünde sadece yerini değil, boyutunu ve duruşunu da değiştir.
+                    // Böylece "aynı dağlar kayıyor" hissi kırılır.
+                    const s = 2.5 + Math.random() * 3.0; // Ölçek aralığını biraz artırdım
                     m.scale.set(s, s, s);
                     const h = m.geometry.parameters.height;
-                    m.position.y = -h*s/2 + (Math.random() * 200 - 50); 
+                    m.position.y = -h*s/2 + (Math.random() * 300 - 100); // Yükseklik çeşitliliğini artırdım
+                    m.rotation.y = Math.random() * Math.PI * 2; // Rastgele döndür
                 }
             });
         }
@@ -486,7 +486,8 @@
             });
             joystickManager.on('move', (evt, data) => {
                 if(data?.vector) { 
-                    moveForward = Math.max(0, data.vector.y) * 0.015; 
+                    // HIZ SABİTLENDİ: 0.015 yerine 0.02 yapıldı ve sabit tutulacak.
+                    moveForward = Math.max(0, data.vector.y) * 0.02; 
                     rotateY = -data.vector.x * 0.03; 
                 }
             });
@@ -497,8 +498,6 @@
             const relOffset = new THREE.Vector3(0, 5.5, -12); 
             const camOffset = relOffset.applyMatrix4(penguin.matrixWorld);
             
-            // KAMERA SALLANTISI (HEAD BOB) EKLENDİ
-            // Yürüyorsa, walkTime'a bağlı olarak hafifçe yukarı aşağı oynat
             if(moveForward > 0.0001) {
                  camOffset.y += Math.sin(walkTime * 2) * 0.08;
             }
@@ -525,19 +524,28 @@
 
             recycleMountains();
 
-            // --- YÜRÜME ANİMASYONU GÜÇLENDİRİLDİ ---
+            // --- YENİ PENGUEN YÜRÜYÜŞÜ (WADDLE) ---
             if(moveForward > 0.0001) {
-                // Adım frekansı artırıldı (0.05 -> 0.08) ki yavaş hızda bile adım attığı belli olsun
-                walkTime += 0.08; 
+                // Adım hızını sabitledik (0.1)
+                walkTime += 0.1; 
                 
-                // Adım açısı (legSwing) artırıldı (0.5 -> 0.7) daha net adımlar için
+                // Bacak hareketi
                 const legSwing = Math.sin(walkTime) * 0.7; 
-                penguin.userData.legs.left.rotation.x = -legSwing;
                 penguin.userData.legs.right.rotation.x = legSwing;
+                penguin.userData.legs.left.rotation.x = -legSwing;
                 
-                penguin.rotation.z = Math.cos(walkTime) * 0.05; 
-                penguin.position.y = Math.abs(Math.sin(walkTime * 2)) * 0.05;
+                // GÖVDE YATIRMA (TILT) MANTIĞI:
+                // legSwing pozitifse (sin > 0), SAĞ ayak öne gidiyor, SOL ayak yerde (geride).
+                // Bu durumda vücut SOLA yatmalı (pozitif Z rotasyonu).
+                // Tam tersi durumda SAĞA yatmalı.
+                // Yani Z rotasyonu, sin(walkTime) ile ters orantılı olmalı.
+                penguin.rotation.z = -Math.sin(walkTime) * 0.1; 
+
+                // Hafif zıplama (Bobbing) - Adım ortasında en yüksek nokta
+                penguin.position.y = Math.abs(Math.cos(walkTime)) * 0.06;
+
             } else {
+                // Durunca yumuşakça nötr pozisyona dön
                 penguin.userData.legs.left.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.left.rotation.x, 0, 0.1);
                 penguin.userData.legs.right.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.right.rotation.x, 0, 0.1);
                 penguin.rotation.z = THREE.MathUtils.lerp(penguin.rotation.z, 0, 0.1);
