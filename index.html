@@ -142,10 +142,10 @@
         let rotateY = 0;
         let isGameActive = false;
         
-        // Timer Değişkenleri
         let startTime;
         let accumulatedTime = 0;
         let timerInterval;
+        let walkTime = 0; 
         
         let weatherMode = 'auto';
         let controlSide = 'left';
@@ -182,15 +182,10 @@
             el.style.display = el.style.display === 'block' ? 'none' : 'block';
         }
 
-        // --- TİMER MANTIĞI GÜNCELLENDİ: Pause/Resume ---
         function startTimer() {
             startTime = Date.now();
             document.getElementById('timer').style.display = 'block';
-            
-            // Eğer daha önceden birikmiş süre varsa, UI'ı hemen güncelle
-            if(accumulatedTime > 0) {
-                 updateTimerUI(accumulatedTime);
-            }
+            if(accumulatedTime > 0) updateTimerUI(accumulatedTime);
 
             timerInterval = setInterval(() => {
                 const currentSessionTime = Date.now() - startTime;
@@ -209,14 +204,8 @@
 
         function pauseGame() {
             isGameActive = false;
-            
-            // Süreyi kaydet
-            if(startTime) {
-                accumulatedTime += Date.now() - startTime;
-            }
+            if(startTime) accumulatedTime += Date.now() - startTime;
             clearInterval(timerInterval);
-            
-            // Timer yazısını gizle ama sıfırlama
             document.getElementById('timer').style.display = 'none';
             document.getElementById('back-btn').style.display = 'none';
             document.getElementById('start-screen').style.display = 'flex';
@@ -250,10 +239,8 @@
             const isNight = getRealWeather() === 'night';
             let skyColor, fogDensity;
             
-            // --- GECE MODU AYDINLATMA AYARI ---
             if (isNight) {
-                skyColor = 0x1a2a40; // Biraz daha açık, lacivert ton
-                fogDensity = 0.0015; // Sis biraz azaldı
+                skyColor = 0x1a2a40; fogDensity = 0.0015;
                 if(!stars) createStars(); 
                 stars.visible = true;
             } else {
@@ -268,21 +255,17 @@
             scene.children.forEach(child => {
                 if (child.isHemisphereLight) {
                     child.color.setHex(skyColor);
-                    // Gece ışığı artırıldı
                     child.intensity = isNight ? 0.6 : 0.7; 
                 }
                 if (child.isDirectionalLight) {
                     child.color.setHex(isNight ? 0xaaccff : 0xffffff);
-                    // Ay ışığı etkisi artırıldı
                     child.intensity = isNight ? 1.5 : 1.8; 
                     child.position.y = isNight ? 80 : 150;
                 }
             });
-            // Pozlama ayarı ile genel parlaklık artırıldı
             renderer.toneMappingExposure = isNight ? 1.5 : 1.1; 
         }
 
-        // --- ZEMİN (DOKUNULMADI) ---
         function createSnowTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 1024; canvas.height = 1024;
@@ -348,9 +331,8 @@
             scene.add(penguin);
             
             initMountains();
-            createDenseColony(false); // Sürüyü oluştur
+            createDenseColony(false); 
             updateCamera();
-            
             updateSceneEnvironment();
         }
 
@@ -402,11 +384,10 @@
         }
 
         function createMountainMesh() {
-            const r = Math.random() * 400 + 400; 
+            const r = Math.random() * 300 + 300; // Biraz daha daraltıldı
             const h = Math.random() * 400 + 300; 
             const geo = new THREE.ConeGeometry(r, h, 32, 16, true);
             const pos = geo.attributes.position;
-            const colors = [];
             for (let j = 0; j < pos.count; j++) {
                 const y = pos.getY(j);
                 const normalizedH = (y + h/2) / h; 
@@ -417,21 +398,15 @@
                 const z = pos.getZ(j);
                 pos.setX(j, x + displacement * (x/r) + (Math.random()-0.5)*15);
                 pos.setZ(j, z + displacement * (z/r) + (Math.random()-0.5)*15);
-                const color = new THREE.Color();
-                const snowLine = 0.25 + (Math.random() * 0.15); 
-                if(normalizedH > snowLine) { color.setHex(0xffffff); } 
-                else {
-                    const rockR = 0.3 + Math.random()*0.1;
-                    const rockG = 0.28 + Math.random()*0.1;
-                    const rockB = 0.25 + Math.random()*0.1;
-                    color.setRGB(rockR, rockG, rockB); 
-                }
-                colors.push(color.r, color.g, color.b);
             }
-            geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
             geo.computeVertexNormals();
+
             const mat = new THREE.MeshStandardMaterial({ 
-                vertexColors: true, roughness: 0.95, metalness: 0.05, flatShading: true 
+                map: snowTexture, 
+                color: 0x999999, 
+                roughness: 0.9, 
+                metalness: 0.1,
+                flatShading: false 
             });
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow = true; mesh.receiveShadow = true;
@@ -439,25 +414,29 @@
         }
 
         function initMountains() {
-            // SAYI ARTIRILDI: 40 yerine 80
-            for(let i=0; i<80; i++) {
-                spawnMountain(Math.random() * 1000 - 500); 
+            // BAŞLANGIÇ BÖLGESİNE DAĞ EKLE (Penguenin baktığı yer)
+            for(let i=0; i<50; i++) {
+                // Z: 0 ile -500 arası (ön taraf), X: Yola yakın
+                spawnMountain(Math.random() * -500, 200 + Math.random() * 600);
             }
-            for(let i=0; i<80; i++) {
-                spawnMountain(500 + Math.random() * 1000); 
+
+            // GENEL DAĞ SAYISI İKİ KATINA ÇIKARILDI (300 -> 600 civarı toplam)
+            // VE DAHA SIKLAŞTIRILDI (X mesafesi 300 yerine 200'den başlıyor)
+            for(let i=0; i<300; i++) {
+                spawnMountain(Math.random() * 1000 - 500, 200 + Math.random() * 800); 
+            }
+            for(let i=0; i<300; i++) {
+                spawnMountain(500 + Math.random() * 1000, 200 + Math.random() * 800); 
             }
         }
 
-        function spawnMountain(zPos) {
+        function spawnMountain(zPos, xRangeOverride = null) {
             const mesh = createMountainMesh();
-            
-            // --- DAĞLAR YAKLAŞTIRILDI ---
-            // Yolun güvenli alanı (boşluk) daraltıldı.
-            // Eskiden 500 birim uzaktaydı, şimdi 250-300 birimden başlıyor.
-            // Bu "kanyon" hissini güçlendirir.
             let xPos;
             const side = Math.random() > 0.5 ? 1 : -1; 
-            xPos = side * (300 + Math.random() * 1200); 
+            // Eğer override yoksa varsayılan sık aralığı kullan
+            const range = xRangeOverride || (200 + Math.random() * 800);
+            xPos = side * range;
 
             const h = mesh.geometry.parameters.height;
             const s = 2.5 + Math.random() * 2.0;
@@ -473,11 +452,9 @@
             mountainObjects.forEach(m => {
                 if (m.position.z < pZ - 600) { 
                     m.position.z = pZ + 2000 + Math.random() * 500; 
-                    
                     const side = Math.random() > 0.5 ? 1 : -1;
-                    // Yakınlaştırma burada da geçerli
-                    m.position.x = side * (300 + Math.random() * 1200);
-                    
+                    // Dönüşte de sıkı aralık korunuyor
+                    m.position.x = side * (200 + Math.random() * 800);
                     const s = 2.5 + Math.random() * 2.0;
                     m.scale.set(s, s, s);
                     const h = m.geometry.parameters.height;
@@ -488,16 +465,12 @@
 
         function createDenseColony(isNight) {
             otherPenguinsGroup = new THREE.Group();
-            // PENGUEN SAYISI 200'e ÇIKTI
             const count = 200; 
             for(let i=0; i<count; i++) {
                 const p = createPenguinNoArms(isNight); 
                 p.scale.set(0.5, 0.5, 0.5);
-                
-                // MESAİFE DARALTILDI: Birbirine yaklaştırmak için random range düşürüldü
-                const x = (Math.random() - 0.5) * 80; // Eskiden 120 idi, şimdi 80
-                const z = -140 - Math.random() * 60;  // Derinlik de azaldı, daha sıkışık
-                
+                const x = (Math.random() - 0.5) * 80;
+                const z = -140 - Math.random() * 60;
                 p.position.set(x, 0, z);
                 p.rotation.y = Math.random() * Math.PI * 2;
                 otherPenguinsGroup.add(p);
@@ -513,9 +486,8 @@
             });
             joystickManager.on('move', (evt, data) => {
                 if(data?.vector) { 
-                    // HIZ DÜŞÜRÜLDÜ: 0.08 yerine 0.04
-                    moveForward = Math.max(0, data.vector.y) * 0.04; 
-                    rotateY = -data.vector.x * 0.04; 
+                    moveForward = Math.max(0, data.vector.y) * 0.015; 
+                    rotateY = -data.vector.x * 0.03; 
                 }
             });
             joystickManager.on('end', () => { moveForward = 0; rotateY = 0; });
@@ -524,6 +496,13 @@
         function updateCamera() {
             const relOffset = new THREE.Vector3(0, 5.5, -12); 
             const camOffset = relOffset.applyMatrix4(penguin.matrixWorld);
+            
+            // KAMERA SALLANTISI (HEAD BOB) EKLENDİ
+            // Yürüyorsa, walkTime'a bağlı olarak hafifçe yukarı aşağı oynat
+            if(moveForward > 0.0001) {
+                 camOffset.y += Math.sin(walkTime * 2) * 0.08;
+            }
+
             camera.position.lerp(camOffset, 0.05);
             camera.lookAt(new THREE.Vector3(penguin.position.x, 3.5, penguin.position.z));
             if(stars) { stars.position.x = camera.position.x; stars.position.z = camera.position.z; }
@@ -546,12 +525,24 @@
 
             recycleMountains();
 
-            // --- YÜRÜME ANİMASYONU KALDIRILDI, SADECE KAYMA ---
-            // Sallanma (rotation.z) ve zıplama (position.y) artık yok.
-            // Sadece smooth bir ilerleme var.
-            // Bacaklar sabit kalıyor.
-            penguin.rotation.z = THREE.MathUtils.lerp(penguin.rotation.z, 0, 0.1);
-            penguin.position.y = THREE.MathUtils.lerp(penguin.position.y, 0, 0.1);
+            // --- YÜRÜME ANİMASYONU GÜÇLENDİRİLDİ ---
+            if(moveForward > 0.0001) {
+                // Adım frekansı artırıldı (0.05 -> 0.08) ki yavaş hızda bile adım attığı belli olsun
+                walkTime += 0.08; 
+                
+                // Adım açısı (legSwing) artırıldı (0.5 -> 0.7) daha net adımlar için
+                const legSwing = Math.sin(walkTime) * 0.7; 
+                penguin.userData.legs.left.rotation.x = -legSwing;
+                penguin.userData.legs.right.rotation.x = legSwing;
+                
+                penguin.rotation.z = Math.cos(walkTime) * 0.05; 
+                penguin.position.y = Math.abs(Math.sin(walkTime * 2)) * 0.05;
+            } else {
+                penguin.userData.legs.left.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.left.rotation.x, 0, 0.1);
+                penguin.userData.legs.right.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.right.rotation.x, 0, 0.1);
+                penguin.rotation.z = THREE.MathUtils.lerp(penguin.rotation.z, 0, 0.1);
+                penguin.position.y = THREE.MathUtils.lerp(penguin.position.y, 0, 0.1);
+            }
 
             updateCamera(); 
             renderer.render(scene, camera);
