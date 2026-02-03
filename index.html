@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nihilist Penguen: Everest Edition</title>
+    <title>Nihilist Penguen: Everest Edition v2</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; font-family: 'Courier New', Courier, monospace; }
         #canvas-container { width: 100vw; height: 100vh; display: block; }
@@ -87,6 +87,13 @@
             position: absolute; bottom: 50px; width: 160px; height: 160px; z-index: 25; display: none;
             border-radius: 50%; background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); border: 2px solid rgba(255,255,255,0.3);
         }
+
+        /* PC Kontrol Bilgilendirmesi */
+        #pc-controls-hint {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            color: rgba(255,255,255,0.5); font-size: 0.8rem; pointer-events: none; z-index: 15;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -95,6 +102,8 @@
         <div id="back-btn" onclick="pauseGame()">◄ MENÜ</div>
         <div id="timer">00:00:00</div>
     </div>
+
+    <div id="pc-controls-hint">W/A/S/D veya OK TUŞLARI ile hareket et</div>
 
     <div id="scoreboard-modal">
         <span class="close-btn" onclick="toggleScoreboard()">×</span>
@@ -138,9 +147,14 @@
         let mountainObjects = []; 
         let otherPenguinsGroup;
         let joystickManager;
+        
+        // Hareket Değişkenleri
         let moveForward = 0;
         let rotateY = 0;
         let isGameActive = false;
+        
+        // Klavye Kontrol Durumları
+        const keys = { w: false, s: false, a: false, d: false };
         
         let startTime;
         let accumulatedTime = 0;
@@ -149,6 +163,26 @@
         
         let weatherMode = 'auto';
         let controlSide = 'left';
+
+        // --- KLAVYE DİNLEYİCİLERİ ---
+        window.addEventListener('keydown', (e) => {
+            if(!isGameActive) return;
+            switch(e.key.toLowerCase()) {
+                case 'w': case 'arrowup': keys.w = true; break;
+                case 's': case 'arrowdown': keys.s = true; break;
+                case 'a': case 'arrowleft': keys.a = true; break;
+                case 'd': case 'arrowright': keys.d = true; break;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            switch(e.key.toLowerCase()) {
+                case 'w': case 'arrowup': keys.w = false; break;
+                case 's': case 'arrowdown': keys.s = false; break;
+                case 'a': case 'arrowleft': keys.a = false; break;
+                case 'd': case 'arrowright': keys.d = false; break;
+            }
+        });
 
         // --- UI FONKSİYONLARI ---
         function setWeatherPref(mode) {
@@ -210,15 +244,22 @@
             document.getElementById('back-btn').style.display = 'none';
             document.getElementById('start-screen').style.display = 'flex';
             document.getElementById('joystick-zone').style.display = 'none';
+            document.getElementById('pc-controls-hint').style.display = 'none';
         }
 
         function startGame() {
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('back-btn').style.display = 'block';
-            const zone = document.getElementById('joystick-zone');
-            zone.style.display = 'block';
-            if(controlSide === 'left') { zone.style.left = '40px'; zone.style.right = 'auto'; } 
-            else { zone.style.right = '40px'; zone.style.left = 'auto'; }
+            
+            // Mobilde joystick göster, PC'de ipucu
+            if(window.matchMedia("(pointer: coarse)").matches) {
+                const zone = document.getElementById('joystick-zone');
+                zone.style.display = 'block';
+                if(controlSide === 'left') { zone.style.left = '40px'; zone.style.right = 'auto'; } 
+                else { zone.style.right = '40px'; zone.style.left = 'auto'; }
+            } else {
+                document.getElementById('pc-controls-hint').style.display = 'block';
+            }
 
             if (!scene) { 
                 try {
@@ -281,7 +322,7 @@
             }
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(40, 40);
+            texture.repeat.set(40, 40); // 8000 birimlik zeminde 40 tekrar = her 200 birimde bir tekrar
             return texture;
         }
 
@@ -383,30 +424,50 @@
             return group;
         }
 
+        // --- DAĞ SİSTEMİ GÜNCELLEMESİ: Daha doğal, yumuşak tepeler ---
         function createMountainMesh() {
             const r = Math.random() * 300 + 300; 
             const h = Math.random() * 400 + 300; 
-            const geo = new THREE.ConeGeometry(r, h, 32, 16, true);
+            // Segment sayısını artırdık ki yamultma işlemi daha detaylı görünsün
+            const geo = new THREE.ConeGeometry(r, h, 64, 32, true);
             const pos = geo.attributes.position;
+            
             for (let j = 0; j < pos.count; j++) {
                 const y = pos.getY(j);
-                const normalizedH = (y + h/2) / h; 
-                let noise = Math.sin(pos.getX(j)*0.03 + pos.getZ(j)*0.025) * 50;
-                noise += Math.cos(pos.getX(j)*0.1) * 25;
-                const displacement = noise * (1 - normalizedH * 0.2);
                 const x = pos.getX(j);
                 const z = pos.getZ(j);
-                pos.setX(j, x + displacement * (x/r) + (Math.random()-0.5)*15);
-                pos.setZ(j, z + displacement * (z/r) + (Math.random()-0.5)*15);
+
+                const normalizedH = (y + h/2) / h; // 0 (taban) ile 1 (tepe) arası
+                
+                // Gürültü (Noise) Fonksiyonu - Dağ yüzeyini bozma
+                let noise = Math.sin(x*0.02 + z*0.015) * 40;
+                noise += Math.cos(x*0.05) * 20;
+
+                // Yumuşatma: Tepeye çıktıkça koniyi sivriltmek yerine biraz basıklaştır ve dağıt
+                // Tepe noktalarını biraz aşağı ve dışa doğru iterek "küt" bir görüntü veriyoruz.
+                const peakSoftener = Math.pow(normalizedH, 2) * 20; 
+                
+                // Displacement
+                const displacement = noise * (1 - normalizedH * 0.5); 
+                
+                // Yeni pozisyonlar
+                // X ve Z'yi biraz "noise" ile kaydırıyoruz ki mükemmel daire olmasın
+                pos.setX(j, x + displacement * (x/r) + (Math.random()-0.5)*10);
+                pos.setZ(j, z + displacement * (z/r) + (Math.random()-0.5)*10);
+                
+                // Tepe sivri kalmasın, tepe noktasını biraz aşağı indir (yüksekliğe göre)
+                if(normalizedH > 0.8) {
+                    pos.setY(j, y - (normalizedH - 0.8) * 80); 
+                }
             }
             geo.computeVertexNormals();
 
             const mat = new THREE.MeshStandardMaterial({ 
                 map: snowTexture, 
-                color: 0x999999, 
-                roughness: 0.9, 
-                metalness: 0.1,
-                flatShading: false 
+                color: 0xcccccc, // Biraz daha açık renk
+                roughness: 1.0, 
+                metalness: 0.0,
+                flatShading: false // Yumuşak geçiş için false
             });
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow = true; mesh.receiveShadow = true;
@@ -435,7 +496,8 @@
             const h = mesh.geometry.parameters.height;
             const s = 2.5 + Math.random() * 2.0;
             mesh.scale.set(s,s,s);
-            const yOffset = -h*s/2 + (Math.random() * 200 - 50); 
+            // Dağları biraz daha gömüyoruz ki tabanları geniş dursun, "dağ sırası" gibi olsun
+            const yOffset = -h*s/2 + (Math.random() * 100 - 150); 
             mesh.position.set(xPos, yOffset, zPos); 
             mesh.rotation.y = Math.random() * Math.PI * 2;
             scene.add(mesh);
@@ -446,20 +508,16 @@
             const pZ = penguin.position.z;
             mountainObjects.forEach(m => {
                 if (m.position.z < pZ - 600) { 
-                    // DÜNYA DEĞİŞİMİ: Daha rastgele ve kümeleşmiş yapılar
-                    // Subway Surfers gibi ilerledikçe değişen dünya hissi
                     m.position.z = pZ + 2000 + Math.random() * 500; 
                     
                     const side = Math.random() > 0.5 ? 1 : -1;
-                    
-                    // Şekil ve konum varyasyonlarını artırdık
                     m.position.x = side * (200 + Math.random() * 900);
                     
                     const s = 2.0 + Math.random() * 3.5; 
                     m.scale.set(s, s, s);
                     
                     const h = m.geometry.parameters.height;
-                    m.position.y = -h*s/2 + (Math.random() * 300 - 50);
+                    m.position.y = -h*s/2 + (Math.random() * 100 - 150);
                     m.rotation.y = Math.random() * Math.PI * 2; 
                 }
             });
@@ -488,7 +546,8 @@
             });
             joystickManager.on('move', (evt, data) => {
                 if(data?.vector) { 
-                    moveForward = Math.max(0, data.vector.y) * 0.02; // Hız sabit
+                    // HIZ GÜNCELLEMESİ: 0.02'den 0.025'e (x1.25 kat arttı)
+                    moveForward = Math.max(0, data.vector.y) * 0.025; 
                     rotateY = -data.vector.x * 0.03; 
                 }
             });
@@ -499,7 +558,6 @@
             const relOffset = new THREE.Vector3(0, 5.5, -12); 
             const camOffset = relOffset.applyMatrix4(penguin.matrixWorld);
             
-            // Kamera sallantısı artık yere basma anıyla senkronize
             if(moveForward > 0.0001) {
                  camOffset.y += Math.sin(walkTime * 2) * 0.08;
             }
@@ -513,40 +571,44 @@
             if(!isGameActive) return;
             
             requestAnimationFrame(animate);
+
+            // KLAVYE KONTROLÜ ENTEGRASYONU
+            // Klavye basılıysa joystick'i ez ve bu değerleri kullan
+            if (keys.w) moveForward = 0.025; // Hız artırıldı
+            else if (!joystickManager || (joystickManager && joystickManager.ids.length === 0)) moveForward = 0;
+
+            if (keys.a) rotateY = 0.03;
+            else if (keys.d) rotateY = -0.03;
+            else if (!joystickManager || (joystickManager && joystickManager.ids.length === 0)) rotateY = 0;
+
+            
             penguin.rotation.y += rotateY; 
             penguin.translateZ(moveForward);
 
             ground.position.x = penguin.position.x;
             ground.position.z = penguin.position.z;
             
-            // ZEMİN KAYMASI: Yere basma hissi için dokunun kayma hızı ile penguenin hızı EŞİTLENDİ
+            // ZEMİN KAYMA DÜZELTMESİ (MOONWALK FIX)
+            // Zemin 8000x8000, Repeat 40x40. Yani 1 tekrar = 200 birim (8000/40).
+            // Offset = Konum / Tekrar Birimi.
+            // Zemin dokusu şimdi penguenin hızıyla birebir senkronize kayacak.
             if (groundMaterial && groundMaterial.map) {
-                // Bu değerler (0.06) penguenin ölçeği ve hızıyla deneysel olarak eşleştirildi
-                // Böylece ayak yere değdiğinde zemin geriye doğru kayıyormuş gibi değil, ayak orada sabit duruyormuş gibi gözükür.
-                groundMaterial.map.offset.x = penguin.position.x * 0.06; 
-                groundMaterial.map.offset.y = penguin.position.z * 0.06;
+                groundMaterial.map.offset.x = penguin.position.x / 200; 
+                groundMaterial.map.offset.y = penguin.position.z / 200;
             }
 
             recycleMountains();
 
-            // --- SUBWAY SURFERS TARZI YERE BASMA HİSSİ ---
-            if(moveForward > 0.0001) {
-                // walkTime artışı moveForward ile orantılı olmalı.
-                // Eğer moveForward 0.02 ise, walkTime'ı öyle bir artırmalıyız ki adım sıklığı hıza otursun.
-                walkTime += 0.12; 
+            if(Math.abs(moveForward) > 0.0001) {
+                // Hız arttığı için animasyon hızı da artmalı ki ayaklar yetişsin
+                walkTime += 0.15; 
                 
-                // Ayak Hareketleri (Daha keskin, daha ritmik)
                 const legSwing = Math.sin(walkTime) * 0.8; 
                 
                 penguin.userData.legs.right.rotation.x = legSwing;
                 penguin.userData.legs.left.rotation.x = -legSwing;
                 
-                // Yere Basma (Squash & Stretch)
-                // Ayak yere değdiği an (sinüs eğrisinin altı) vücut biraz alçalmalı
                 penguin.position.y = Math.abs(Math.sin(walkTime)) * 0.08;
-                
-                // Gövde Yatırma (Waddle) - Ağırlık aktarımı
-                // Sağ ayak yerdeyken (gerideyken) sağa yat
                 penguin.rotation.z = -Math.sin(walkTime) * 0.08; 
 
             } else {
