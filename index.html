@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nihilist Penguen: Everest Edition v2</title>
+    <title>Nihilist Penguen: Everest Edition v3 (Final Fix)</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; font-family: 'Courier New', Courier, monospace; }
         #canvas-container { width: 100vw; height: 100vh; display: block; }
@@ -88,7 +88,6 @@
             border-radius: 50%; background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); border: 2px solid rgba(255,255,255,0.3);
         }
 
-        /* PC Kontrol Bilgilendirmesi */
         #pc-controls-hint {
             position: absolute; bottom: 20px; width: 100%; text-align: center;
             color: rgba(255,255,255,0.5); font-size: 0.8rem; pointer-events: none; z-index: 15;
@@ -150,10 +149,10 @@
         
         // Hareket Değişkenleri
         let moveForward = 0;
+        const MAX_SPEED = 0.03; // Hız sabitlendi
         let rotateY = 0;
         let isGameActive = false;
         
-        // Klavye Kontrol Durumları
         const keys = { w: false, s: false, a: false, d: false };
         
         let startTime;
@@ -251,7 +250,6 @@
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('back-btn').style.display = 'block';
             
-            // Mobilde joystick göster, PC'de ipucu
             if(window.matchMedia("(pointer: coarse)").matches) {
                 const zone = document.getElementById('joystick-zone');
                 zone.style.display = 'block';
@@ -322,7 +320,9 @@
             }
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(40, 40); // 8000 birimlik zeminde 40 tekrar = her 200 birimde bir tekrar
+            // DOKU TEKRARI AYARI: Yürüme hızıyla senkronize olması için 50 olarak ayarlandı.
+            // 8000 birimlik zeminde 50 tekrar = her 160 birimde bir doku tekrar eder.
+            texture.repeat.set(50, 50); 
             return texture;
         }
 
@@ -398,24 +398,31 @@
             const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1.0 });
             const orangeMat = new THREE.MeshStandardMaterial({ color: 0xff8800, roughness: 0.8 });
 
+            // PENGUEN KONUM DÜZELTMESİ: Havada durmaması için Y ekseninde aşağı indirildi.
+            const bodyOffsetY = -0.4; 
+
             const bodyGeo = new THREE.CapsuleGeometry(0.95, 1.4, 16, 32);
             const body = new THREE.Mesh(bodyGeo, blackMat);
-            body.position.y = 2.6; body.castShadow = true; group.add(body);
+            body.position.y = 2.6 + bodyOffsetY; body.castShadow = true; group.add(body);
+            
             const bellyGeo = new THREE.CapsuleGeometry(0.85, 1.1, 16, 32); bellyGeo.scale(0.9, 1, 0.5);
-            const belly = new THREE.Mesh(bellyGeo, whiteMat); belly.position.set(0, 2.5, 0.48); group.add(belly);
+            const belly = new THREE.Mesh(bellyGeo, whiteMat); belly.position.set(0, 2.5 + bodyOffsetY, 0.48); group.add(belly);
+            
             const headGeo = new THREE.CapsuleGeometry(0.55, 0.45, 16, 24);
-            const head = new THREE.Mesh(headGeo, blackMat); head.position.set(0, 4.3, 0); head.castShadow = true; group.add(head);
+            const head = new THREE.Mesh(headGeo, blackMat); head.position.set(0, 4.3 + bodyOffsetY, 0); head.castShadow = true; group.add(head);
+            
             const beakGeo = new THREE.ConeGeometry(0.15, 0.55, 16);
-            const beak = new THREE.Mesh(beakGeo, orangeMat); beak.rotation.x = Math.PI / 2; beak.position.set(0, 4.3, 0.65); group.add(beak);
+            const beak = new THREE.Mesh(beakGeo, orangeMat); beak.rotation.x = Math.PI / 2; beak.position.set(0, 4.3 + bodyOffsetY, 0.65); group.add(beak);
+            
             const legGeo = new THREE.CylinderGeometry(0.28, 0.25, 0.7, 12);
             const footGeo = new THREE.CapsuleGeometry(0.28, 0.9, 12, 16); footGeo.scale(1, 1, 0.5);
             
-            const leftLegGroup = new THREE.Group(); leftLegGroup.position.set(0.5, 1.3, 0);
+            const leftLegGroup = new THREE.Group(); leftLegGroup.position.set(0.5, 1.3 + bodyOffsetY, 0);
             const leftLeg = new THREE.Mesh(legGeo, blackMat); leftLeg.position.y = -0.1; leftLeg.castShadow = true; leftLegGroup.add(leftLeg);
             const leftFoot = new THREE.Mesh(footGeo, orangeMat); leftFoot.rotation.x = Math.PI / 2; leftFoot.position.set(0, -0.45, 0.35); leftFoot.castShadow = true; leftLegGroup.add(leftFoot);
             group.add(leftLegGroup);
 
-            const rightLegGroup = new THREE.Group(); rightLegGroup.position.set(-0.5, 1.3, 0);
+            const rightLegGroup = new THREE.Group(); rightLegGroup.position.set(-0.5, 1.3 + bodyOffsetY, 0);
             const rightLeg = new THREE.Mesh(legGeo, blackMat); rightLeg.position.y = -0.1; rightLeg.castShadow = true; rightLegGroup.add(rightLeg);
             const rightFoot = new THREE.Mesh(footGeo, orangeMat); rightFoot.rotation.x = Math.PI / 2; rightFoot.position.set(0, -0.45, 0.35); rightFoot.castShadow = true; rightLegGroup.add(rightFoot);
             group.add(rightLegGroup);
@@ -424,11 +431,10 @@
             return group;
         }
 
-        // --- DAĞ SİSTEMİ GÜNCELLEMESİ: Daha doğal, yumuşak tepeler ---
+        // --- DAĞ SİSTEMİ DÜZELTMESİ ---
         function createMountainMesh() {
             const r = Math.random() * 300 + 300; 
             const h = Math.random() * 400 + 300; 
-            // Segment sayısını artırdık ki yamultma işlemi daha detaylı görünsün
             const geo = new THREE.ConeGeometry(r, h, 64, 32, true);
             const pos = geo.attributes.position;
             
@@ -437,37 +443,33 @@
                 const x = pos.getX(j);
                 const z = pos.getZ(j);
 
-                const normalizedH = (y + h/2) / h; // 0 (taban) ile 1 (tepe) arası
+                const normalizedH = (y + h/2) / h; 
                 
-                // Gürültü (Noise) Fonksiyonu - Dağ yüzeyini bozma
+                // Dağ yüzeyini bozma (Noise)
                 let noise = Math.sin(x*0.02 + z*0.015) * 40;
                 noise += Math.cos(x*0.05) * 20;
 
-                // Yumuşatma: Tepeye çıktıkça koniyi sivriltmek yerine biraz basıklaştır ve dağıt
-                // Tepe noktalarını biraz aşağı ve dışa doğru iterek "küt" bir görüntü veriyoruz.
-                const peakSoftener = Math.pow(normalizedH, 2) * 20; 
+                // Yumuşatma: Tepe noktalarını sivriltmek yerine biraz aşağı bas.
+                // Zirveye yaklaştıkça etki artar.
+                let peakSoftener = 0;
+                if(normalizedH > 0.7) {
+                     peakSoftener = (normalizedH - 0.7) * 100; // Tepeleri kütleştir
+                }
                 
-                // Displacement
                 const displacement = noise * (1 - normalizedH * 0.5); 
                 
-                // Yeni pozisyonlar
-                // X ve Z'yi biraz "noise" ile kaydırıyoruz ki mükemmel daire olmasın
                 pos.setX(j, x + displacement * (x/r) + (Math.random()-0.5)*10);
                 pos.setZ(j, z + displacement * (z/r) + (Math.random()-0.5)*10);
-                
-                // Tepe sivri kalmasın, tepe noktasını biraz aşağı indir (yüksekliğe göre)
-                if(normalizedH > 0.8) {
-                    pos.setY(j, y - (normalizedH - 0.8) * 80); 
-                }
+                pos.setY(j, y - peakSoftener); // Tepeyi aşağı indir
             }
             geo.computeVertexNormals();
 
             const mat = new THREE.MeshStandardMaterial({ 
                 map: snowTexture, 
-                color: 0xcccccc, // Biraz daha açık renk
-                roughness: 1.0, 
-                metalness: 0.0,
-                flatShading: false // Yumuşak geçiş için false
+                color: 0xdddddd, 
+                roughness: 0.9, 
+                metalness: 0.1,
+                flatShading: false 
             });
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow = true; mesh.receiveShadow = true;
@@ -475,14 +477,17 @@
         }
 
         function initMountains() {
-            for(let i=0; i<50; i++) {
-                spawnMountain(Math.random() * -500, 200 + Math.random() * 600);
+            // Daha yakına ve sık dağlar
+            for(let i=0; i<40; i++) {
+                spawnMountain(Math.random() * -800, 250 + Math.random() * 400);
             }
-            for(let i=0; i<300; i++) {
-                spawnMountain(Math.random() * 1000 - 500, 200 + Math.random() * 800); 
+            // Orta mesafe
+            for(let i=0; i<150; i++) {
+                spawnMountain(Math.random() * 2000 - 1000, 400 + Math.random() * 800); 
             }
-            for(let i=0; i<300; i++) {
-                spawnMountain(500 + Math.random() * 1000, 200 + Math.random() * 800); 
+            // Uzak mesafe
+            for(let i=0; i<150; i++) {
+                 spawnMountain(Math.random() * 2000 - 1000, 1200 + Math.random() * 1000);
             }
         }
 
@@ -490,14 +495,18 @@
             const mesh = createMountainMesh();
             let xPos;
             const side = Math.random() > 0.5 ? 1 : -1; 
-            const range = xRangeOverride || (200 + Math.random() * 800);
+            const range = xRangeOverride || (300 + Math.random() * 1000);
             xPos = side * range;
 
             const h = mesh.geometry.parameters.height;
-            const s = 2.5 + Math.random() * 2.0;
+            const s = 2.0 + Math.random() * 2.5;
             mesh.scale.set(s,s,s);
-            // Dağları biraz daha gömüyoruz ki tabanları geniş dursun, "dağ sırası" gibi olsun
-            const yOffset = -h*s/2 + (Math.random() * 100 - 150); 
+
+            // DAĞ KONUM DÜZELTMESİ: Yükseklik hesaplaması düzeltildi.
+            // Koni merkezi (0,0,0)'dır. Tabanı yere oturtmak için yükseklik/2 kadar yukarı kaldırıyoruz.
+            // Hafifçe gömmek için -30 ekliyoruz.
+            const yOffset = (h * s / 2) - 30; 
+            
             mesh.position.set(xPos, yOffset, zPos); 
             mesh.rotation.y = Math.random() * Math.PI * 2;
             scene.add(mesh);
@@ -507,17 +516,18 @@
         function recycleMountains() {
             const pZ = penguin.position.z;
             mountainObjects.forEach(m => {
-                if (m.position.z < pZ - 600) { 
-                    m.position.z = pZ + 2000 + Math.random() * 500; 
+                if (m.position.z < pZ - 800) { 
+                    m.position.z = pZ + 2500 + Math.random() * 500; 
                     
                     const side = Math.random() > 0.5 ? 1 : -1;
-                    m.position.x = side * (200 + Math.random() * 900);
+                    m.position.x = side * (300 + Math.random() * 1200);
                     
-                    const s = 2.0 + Math.random() * 3.5; 
+                    const s = 2.0 + Math.random() * 3.0; 
                     m.scale.set(s, s, s);
                     
                     const h = m.geometry.parameters.height;
-                    m.position.y = -h*s/2 + (Math.random() * 100 - 150);
+                    // Geri dönüşümde de doğru yükseklikte konumlandır
+                    m.position.y = (h * s / 2) - 30;
                     m.rotation.y = Math.random() * Math.PI * 2; 
                 }
             });
@@ -546,8 +556,8 @@
             });
             joystickManager.on('move', (evt, data) => {
                 if(data?.vector) { 
-                    // HIZ GÜNCELLEMESİ: 0.02'den 0.025'e (x1.25 kat arttı)
-                    moveForward = Math.max(0, data.vector.y) * 0.025; 
+                    // Joystick ile hız kontrolü (Max hıza kadar)
+                    moveForward = Math.max(0, data.vector.y) * MAX_SPEED; 
                     rotateY = -data.vector.x * 0.03; 
                 }
             });
@@ -572,9 +582,7 @@
             
             requestAnimationFrame(animate);
 
-            // KLAVYE KONTROLÜ ENTEGRASYONU
-            // Klavye basılıysa joystick'i ez ve bu değerleri kullan
-            if (keys.w) moveForward = 0.025; // Hız artırıldı
+            if (keys.w) moveForward = MAX_SPEED; 
             else if (!joystickManager || (joystickManager && joystickManager.ids.length === 0)) moveForward = 0;
 
             if (keys.a) rotateY = 0.03;
@@ -588,27 +596,27 @@
             ground.position.x = penguin.position.x;
             ground.position.z = penguin.position.z;
             
-            // ZEMİN KAYMA DÜZELTMESİ (MOONWALK FIX)
-            // Zemin 8000x8000, Repeat 40x40. Yani 1 tekrar = 200 birim (8000/40).
-            // Offset = Konum / Tekrar Birimi.
-            // Zemin dokusu şimdi penguenin hızıyla birebir senkronize kayacak.
+            // ZEMİN KAYMA SENKRONİZASYONU (FINAL FIX)
+            // Zemin 8000 birim, Tekrar 50. Yani bir kare 160 birim (8000/50).
+            // Penguenin konumu / 160 bize doğru offseti verir.
             if (groundMaterial && groundMaterial.map) {
-                groundMaterial.map.offset.x = penguin.position.x / 200; 
-                groundMaterial.map.offset.y = penguin.position.z / 200;
+                groundMaterial.map.offset.x = penguin.position.x / 160; 
+                groundMaterial.map.offset.y = penguin.position.z / 160;
             }
 
             recycleMountains();
 
             if(Math.abs(moveForward) > 0.0001) {
-                // Hız arttığı için animasyon hızı da artmalı ki ayaklar yetişsin
-                walkTime += 0.15; 
+                // Yürüme animasyon hızı, hareket hızı ve zemin kayma hızıyla dengelendi.
+                walkTime += 0.1; 
                 
                 const legSwing = Math.sin(walkTime) * 0.8; 
                 
                 penguin.userData.legs.right.rotation.x = legSwing;
                 penguin.userData.legs.left.rotation.x = -legSwing;
                 
-                penguin.position.y = Math.abs(Math.sin(walkTime)) * 0.08;
+                // Yere basma efekti (bobbing) biraz azaltıldı
+                penguin.position.y = Math.abs(Math.sin(walkTime)) * 0.06;
                 penguin.rotation.z = -Math.sin(walkTime) * 0.08; 
 
             } else {
