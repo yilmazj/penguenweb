@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nihilist Penguen: Everest Edition v4 (Speed & Path Fix)</title>
+    <title>Nihilist Penguen: Everest Edition v5 (World Flow)</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #111; font-family: 'Courier New', Courier, monospace; }
         #canvas-container { width: 100vw; height: 100vh; display: block; }
@@ -148,11 +148,11 @@
         let joystickManager;
         
         // Hareket Değişkenleri
-        let moveForward = 0;
-        // HIZ GÜNCELLEMESİ: 0.03'ten 0.06'ya çıkarıldı (2 KAT HIZ)
+        let moveSpeed = 0; // İleri gitme hızı değil, dünyanın akma hızı
         const MAX_SPEED = 0.06; 
         let rotateY = 0;
         let isGameActive = false;
+        let totalDistanceTraveled = 0; // Zemin kayması için toplam mesafe
         
         const keys = { w: false, s: false, a: false, d: false };
         
@@ -321,7 +321,6 @@
             }
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
-            // 8000 birimlik zeminde 50 tekrar = her 160 birimde bir doku tekrar eder.
             texture.repeat.set(50, 50); 
             return texture;
         }
@@ -371,8 +370,8 @@
             penguin = createPenguinNoArms(false);
             scene.add(penguin);
             
-            createDenseColony(false); // Sürü önce oluşturulsun
-            initMountains(); // Dağlar sonra, sürüye çarpmayacak şekilde
+            createDenseColony(false); 
+            initMountains(); 
             
             updateCamera();
             updateSceneEnvironment();
@@ -473,17 +472,12 @@
         }
 
         function initMountains() {
-            // Başlangıç bölgesindeki dağları yoldan çok uzağa atıyoruz.
             for(let i=0; i<40; i++) {
-                // Z: Başlangıç çizgisine yakın
-                // XRangeOverride: Merkezden en az 800 birim uzak (Safe Zone)
                 spawnMountain(Math.random() * -500, 800 + Math.random() * 600);
             }
-            // Orta mesafe
             for(let i=0; i<150; i++) {
                 spawnMountain(Math.random() * 2000 - 1000, 900 + Math.random() * 800); 
             }
-            // Uzak mesafe
             for(let i=0; i<150; i++) {
                  spawnMountain(Math.random() * 2000 - 1000, 1500 + Math.random() * 1000);
             }
@@ -493,9 +487,9 @@
             const mesh = createMountainMesh();
             let xPos;
             const side = Math.random() > 0.5 ? 1 : -1; 
-            // DAĞLAR İÇİN GÜVENLİ BÖLGE (SAFE ZONE):
-            // Merkezden en az 600 birim uzakta oluşsunlar ki yol açılsın.
-            const minSafeDistance = 600;
+            // GÜVENLİ BÖLGE GÜNCELLEMESİ: 600 -> 1000
+            // Yol artık çok daha geniş, dağlar penguene yaklaşamaz.
+            const minSafeDistance = 1000;
             const rangeWidth = xRangeOverride || (Math.random() * 1000);
             xPos = side * (minSafeDistance + rangeWidth);
 
@@ -511,15 +505,17 @@
             mountainObjects.push(mesh);
         }
 
+        // DAĞ GERİ DÖNÜŞÜM SİSTEMİ (DÜNYA AKIŞINA GÖRE)
         function recycleMountains() {
-            const pZ = penguin.position.z;
+            // Penguen artık Z=0 civarında durduğu için, dağlar kameranın arkasına (örn: Z < -1000)
+            // geçtiğinde onları alıp en öne taşıyoruz.
             mountainObjects.forEach(m => {
-                if (m.position.z < pZ - 800) { 
-                    m.position.z = pZ + 2500 + Math.random() * 500; 
+                if (m.position.z < -1200) { 
+                    m.position.z = 2500 + Math.random() * 500; // En öne taşı
                     
                     const side = Math.random() > 0.5 ? 1 : -1;
-                    // Geri dönüşümde de güvenli bölgeyi koru
-                    const minSafeDistance = 600;
+                    // Geri dönüşümde de geniş güvenli bölgeyi koru (1000 birim)
+                    const minSafeDistance = 1000;
                     m.position.x = side * (minSafeDistance + Math.random() * 1200);
                     
                     const s = 2.0 + Math.random() * 3.0; 
@@ -538,9 +534,9 @@
             for(let i=0; i<count; i++) {
                 const p = createPenguinNoArms(isNight); 
                 p.scale.set(0.5, 0.5, 0.5);
-                // Sürüyü biraz daha derli toplu ve kameranın arkasında görünür bir yere koyalım
                 const x = (Math.random() - 0.5) * 100;
-                const z = -100 - Math.random() * 80; 
+                // Sürü başlangıçta penguenin biraz arkasında ve etrafında
+                const z = -50 - Math.random() * 100; 
                 p.position.set(x, 0, z);
                 p.rotation.y = Math.random() * Math.PI * 2;
                 otherPenguinsGroup.add(p);
@@ -556,24 +552,27 @@
             });
             joystickManager.on('move', (evt, data) => {
                 if(data?.vector) { 
-                    // Joystick de yeni MAX_SPEED'i kullanıyor
-                    moveForward = Math.max(0, data.vector.y) * MAX_SPEED; 
+                    moveSpeed = Math.max(0, data.vector.y) * MAX_SPEED; 
                     rotateY = -data.vector.x * 0.03; 
                 }
             });
-            joystickManager.on('end', () => { moveForward = 0; rotateY = 0; });
+            joystickManager.on('end', () => { moveSpeed = 0; rotateY = 0; });
         }
 
         function updateCamera() {
             const relOffset = new THREE.Vector3(0, 5.5, -12); 
             const camOffset = relOffset.applyMatrix4(penguin.matrixWorld);
             
-            if(moveForward > 0.0001) {
+            if(moveSpeed > 0.0001) {
                  camOffset.y += Math.sin(walkTime * 2) * 0.08;
             }
 
+            // Kamera artık sadece penguenin dönüşüne ve zıplamasına tepki veriyor,
+            // çünkü penguen Z ekseninde ilerlemiyor.
             camera.position.lerp(camOffset, 0.05);
             camera.lookAt(new THREE.Vector3(penguin.position.x, 3.5, penguin.position.z));
+            
+            // Yıldızlar da kamerayla birlikte kalsın
             if(stars) { stars.position.x = camera.position.x; stars.position.z = camera.position.z; }
         }
 
@@ -582,44 +581,58 @@
             
             requestAnimationFrame(animate);
 
-            if (keys.w) moveForward = MAX_SPEED; 
-            else if (!joystickManager || (joystickManager && joystickManager.ids.length === 0)) moveForward = 0;
+            if (keys.w) moveSpeed = MAX_SPEED; 
+            else if (!joystickManager || (joystickManager && joystickManager.ids.length === 0)) moveSpeed = 0;
 
             if (keys.a) rotateY = 0.03;
             else if (keys.d) rotateY = -0.03;
             else if (!joystickManager || (joystickManager && joystickManager.ids.length === 0)) rotateY = 0;
 
-            
+            // 1. PENGUEN HAREKETİ (Sadece Dönüş)
             penguin.rotation.y += rotateY; 
-            penguin.translateZ(moveForward);
+            // DİKKAT: penguin.translateZ(moveSpeed) KALDIRILDI. 
+            // Penguen artık fiziksel olarak ileri gitmiyor.
 
+            // 2. DÜNYA HAREKETİ (Endless Runner Mantığı)
+            if (moveSpeed > 0) {
+                // Toplam kat edilen mesafeyi takip et (Zemin dokusu için)
+                totalDistanceTraveled += moveSpeed;
+
+                // Dağları geriye doğru hareket ettir
+                mountainObjects.forEach(m => {
+                    m.position.z -= moveSpeed;
+                });
+
+                // Başlangıç sürüsünü geriye doğru hareket ettir (Böylece uzaklaşırlar)
+                if(otherPenguinsGroup) {
+                        otherPenguinsGroup.position.z -= moveSpeed;
+                }
+            }
+
+            // Zemin objesi penguenin altında sabit kalsın
             ground.position.x = penguin.position.x;
             ground.position.z = penguin.position.z;
             
-            // ZEMİN KAYMA SENKRONİZASYONU
-            // Hız 2 katına çıktığı için bu formül otomatik olarak zemini 2 kat hızlı kaydıracak.
+            // ZEMİN DOKU KAYDIRMA (Toplam mesafeye göre)
             if (groundMaterial && groundMaterial.map) {
+                // Penguenin Z pozisyonu yerine toplam kat edilen mesafeyi kullanıyoruz
+                groundMaterial.map.offset.y = totalDistanceTraveled / 160;
+                // Yanlara gidiş için X offset'i hala penguenin pozisyonuna bağlı
                 groundMaterial.map.offset.x = penguin.position.x / 160; 
-                groundMaterial.map.offset.y = penguin.position.z / 160;
             }
 
-            recycleMountains();
+            recycleMountains(); // Dağları döndür
 
-            if(Math.abs(moveForward) > 0.0001) {
-                // YÜRÜME ANİMASYON HIZI GÜNCELLEMESİ:
-                // Fiziksel hız 2 katına çıktığı için, ayakların da 2 kat hızlı hareket etmesi lazım.
-                // 0.1 yerine 0.2 artış.
+            // YÜRÜME ANİMASYONU (Hız varsa çalışır)
+            if(Math.abs(moveSpeed) > 0.0001) {
                 walkTime += 0.2; 
-                
                 const legSwing = Math.sin(walkTime) * 0.8; 
-                
                 penguin.userData.legs.right.rotation.x = legSwing;
                 penguin.userData.legs.left.rotation.x = -legSwing;
-                
                 penguin.position.y = Math.abs(Math.sin(walkTime)) * 0.06;
                 penguin.rotation.z = -Math.sin(walkTime) * 0.08; 
-
             } else {
+                // Durma animasyonu
                 penguin.userData.legs.left.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.left.rotation.x, 0, 0.1);
                 penguin.userData.legs.right.rotation.x = THREE.MathUtils.lerp(penguin.userData.legs.right.rotation.x, 0, 0.1);
                 penguin.rotation.z = THREE.MathUtils.lerp(penguin.rotation.z, 0, 0.1);
