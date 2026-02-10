@@ -1,240 +1,507 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Nihilist Penguen Oyunu</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden; /* Kaydırma çubuklarını gizle */
-            touch-action: none; /* Çift dokunma ile yakınlaştırmayı engelle */
-        }
-        canvas {
-            display: block;
-        }
-        #joystick-container {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            width: 120px;
-            height: 120px;
-            background-color: rgba(255, 255, 255, 0.2); /* Şeffaf beyaz arka plan */
-            border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            touch-action: none; /* Dokunma hareketlerini bu eleman için engelle */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #joystick-knob {
-            width: 60px;
-            height: 60px;
-            background-color: rgba(255, 255, 255, 0.5); /* Şeffaf beyaz topuz */
-            border-radius: 50%;
-            position: absolute;
-            /* Başlangıçta merkezde */
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Penguen Yürüyüşü</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom, #a8b8c4 0%, #d4dde4 40%, #e8eef2 100%);
+        }
+
+        #joystick-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 120px;
+            height: 120px;
+            z-index: 100;
+        }
+
+        #joystick-base {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), rgba(100, 100, 100, 0.15));
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        #joystick-stick {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.8), rgba(150, 150, 150, 0.4));
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            top: 35px;
+            left: 35px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <div id="joystick-container">
-        <div id="joystick-knob"></div>
-    </div>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="joystick-container">
+        <div id="joystick-base"></div>
+        <div id="joystick-stick"></div>
+    </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-    <script>
-        // --- Sahne Kurulumu ---
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x8899aa); // Resimdeki gri gökyüzü rengi
-        scene.fog = new THREE.FogExp2(0x8899aa, 0.0015); // Sis efekti
+        // Joystick kontrolü
+        const joystickContainer = document.getElementById('joystick-container');
+        const joystickStick = document.getElementById('joystick-stick');
+        let joystickActive = false;
+        let joystickAngle = 0;
+        let joystickPower = 0;
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true; // Gölgeleri etkinleştir
-        document.body.appendChild(renderer.domElement);
+        // Penguen özellikleri
+        const penguin = {
+            x: canvas.width / 2,
+            y: canvas.height - 150,
+            size: 60,
+            velocityX: 0,
+            velocityY: 0,
+            rotation: 0,
+            walkCycle: 0,
+            leftFootDown: true,
+            bodyTilt: 0
+        };
 
-        // --- Işıklar ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
+        // Kamera (dünya kaydırma)
+        const camera = {
+            x: 0,
+            y: 0
+        };
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(50, 50, 50);
-        directionalLight.castShadow = true;
-        directionalLight.shadow.camera.left = -100;
-        directionalLight.shadow.camera.right = 100;
-        directionalLight.shadow.camera.top = 100;
-        directionalLight.shadow.camera.bottom = -100;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
-        scene.add(directionalLight);
+        // Arazi noktaları (sonsuz yürüyüş için)
+        let terrainPoints = [];
+        let mountainLayers = [];
+        let terrainOffset = 0;
 
-        // --- Zemin (Karlı Düzlem) ---
-        const planeGeometry = new THREE.PlaneGeometry(2000, 2000);
-        const planeMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 });
-        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-        plane.rotation.x = -Math.PI / 2;
-        plane.receiveShadow = true;
-        scene.add(plane);
+        // Joystick event listeners
+        joystickStick.addEventListener('mousedown', startJoystick);
+        joystickStick.addEventListener('touchstart', startJoystick);
+        
+        document.addEventListener('mousemove', moveJoystick);
+        document.addEventListener('touchmove', moveJoystick);
+        
+        document.addEventListener('mouseup', endJoystick);
+        document.addEventListener('touchend', endJoystick);
 
-        // --- Dağlar (Basit Geometriler) ---
-        function createMountain(x, z, height, radius) {
-            const geometry = new THREE.ConeGeometry(radius, height, 8);
-            const material = new THREE.MeshStandardMaterial({ color: 0xcccccc, flatShading: true }); // Low-poly görünüm
-            const mountain = new THREE.Mesh(geometry, material);
-            mountain.position.set(x, height / 2, z);
-            mountain.castShadow = true;
-            mountain.receiveShadow = true;
-            scene.add(mountain);
-        }
+        function startJoystick(e) {
+            e.preventDefault();
+            joystickActive = true;
+        }
 
-        // Resimdekine benzer dağ yerleşimi
-        createMountain(-300, -400, 400, 200);
-        createMountain(-150, -300, 250, 120);
-        createMountain(300, -450, 450, 220);
-        createMountain(100, -350, 150, 80);
-        createMountain(-400, -100, 300, 150);
-        createMountain(450, -100, 350, 180);
+        function moveJoystick(e) {
+            if (!joystickActive) return;
+            e.preventDefault();
 
-        // --- Penguen Modeli (Basit Siyah Penguen) ---
-        const penguinGroup = new THREE.Group();
-        
-        // Gövde
-        const bodyGeometry = new THREE.SphereGeometry(1, 32, 32);
-        bodyGeometry.scale(1, 1.5, 0.8); // Biraz ovalleştir
-        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 }); // Simsiyah
-        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        body.position.y = 1.5;
-        body.castShadow = true;
-        penguinGroup.add(body);
+            const rect = joystickContainer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
 
-        // Kafa
-        const headGeometry = new THREE.SphereGeometry(0.6, 32, 32);
-        const headMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 }); // Simsiyah
-        const head = new THREE.Mesh(headGeometry, headMaterial);
-        head.position.y = 3.2;
-        head.castShadow = true;
-        penguinGroup.add(head);
+            let clientX, clientY;
+            if (e.type.includes('touch')) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
 
-        // Ayaklar
-        const footGeometry = new THREE.BoxGeometry(0.5, 0.2, 0.8);
-        const footMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
-        
-        const leftFoot = new THREE.Mesh(footGeometry, footMaterial);
-        leftFoot.position.set(-0.5, 0.1, 0);
-        leftFoot.castShadow = true;
-        penguinGroup.add(leftFoot);
+            const deltaX = clientX - centerX;
+            const deltaY = clientY - centerY;
+            const distance = Math.min(35, Math.sqrt(deltaX * deltaX + deltaY * deltaY));
+            
+            joystickAngle = Math.atan2(deltaY, deltaX);
+            joystickPower = distance / 35;
 
-        const rightFoot = new THREE.Mesh(footGeometry, footMaterial);
-        rightFoot.position.set(0.5, 0.1, 0);
-        rightFoot.castShadow = true;
-        penguinGroup.add(rightFoot);
+            const stickX = 35 + Math.cos(joystickAngle) * distance;
+            const stickY = 35 + Math.sin(joystickAngle) * distance;
 
-        scene.add(penguinGroup);
+            joystickStick.style.left = stickX + 'px';
+            joystickStick.style.top = stickY + 'px';
+        }
 
-        // --- Joystick Kontrolü ---
-        const joystickContainer = document.getElementById('joystick-container');
-        const joystickKnob = document.getElementById('joystick-knob');
-        let joystickData = { x: 0, y: 0, active: false };
-        const maxRadius = joystickContainer.clientWidth / 2;
+        function endJoystick() {
+            joystickActive = false;
+            joystickPower = 0;
+            joystickStick.style.left = '35px';
+            joystickStick.style.top = '35px';
+        }
 
-        function handleTouch(e) {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = joystickContainer.getBoundingClientRect();
-            const centerX = rect.left + rect.width / 2;
-            const centerY = rect.top + rect.height / 2;
+        // Arazi oluşturma
+        function generateTerrain() {
+            terrainPoints = [];
+            const segments = 100;
+            const segmentWidth = canvas.width * 3 / segments;
 
-            let x = touch.clientX - centerX;
-            let y = touch.clientY - centerY;
+            for (let i = 0; i <= segments; i++) {
+                const x = i * segmentWidth;
+                const y = canvas.height - 100 + Math.sin(i * 0.1) * 20;
+                terrainPoints.push({ x, y });
+            }
+        }
 
-            const distance = Math.sqrt(x * x + y * y);
-            if (distance > maxRadius) {
-                const angle = Math.atan2(y, x);
-                x = Math.cos(angle) * maxRadius;
-                y = Math.sin(angle) * maxRadius;
-            }
+        function generateMountains() {
+            mountainLayers = [];
+            
+            // Arka dağlar
+            for (let layer = 0; layer < 3; layer++) {
+                const mountains = [];
+                const numPeaks = 8 + layer * 2;
+                const layerWidth = canvas.width * 4;
+                
+                for (let i = 0; i <= numPeaks; i++) {
+                    const x = (i / numPeaks) * layerWidth;
+                    const baseHeight = 200 + layer * 80;
+                    const variation = 150 - layer * 30;
+                    const y = baseHeight + Math.sin(i * 0.5 + layer) * variation;
+                    
+                    mountains.push({ x, y });
+                }
+                
+                mountainLayers.push({
+                    peaks: mountains,
+                    parallax: 0.2 + layer * 0.15,
+                    opacity: 0.3 + layer * 0.15,
+                    snowLine: 0.3 - layer * 0.05
+                });
+            }
+        }
 
-            joystickKnob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+        // Dağları çiz
+        function drawMountains() {
+            mountainLayers.forEach((layer, index) => {
+                ctx.save();
+                
+                const offsetX = camera.x * layer.parallax;
+                
+                ctx.beginPath();
+                ctx.moveTo(-100, canvas.height);
+                
+                layer.peaks.forEach((peak, i) => {
+                    const x = peak.x - offsetX;
+                    const y = peak.y;
+                    
+                    if (i === 0) {
+                        ctx.lineTo(x, y);
+                    } else {
+                        const prevPeak = layer.peaks[i - 1];
+                        const prevX = prevPeak.x - offsetX;
+                        const prevY = prevPeak.y;
+                        
+                        const cpX = (prevX + x) / 2;
+                        const cpY = Math.min(prevY, y) - 50;
+                        
+                        ctx.quadraticCurveTo(cpX, cpY, x, y);
+                    }
+                });
+                
+                ctx.lineTo(canvas.width + 100, canvas.height);
+                ctx.closePath();
+                
+                // Dağ rengi (koyu kahverengi/gri)
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                const baseColor = 100 - index * 15;
+                gradient.addColorStop(0, `rgba(${baseColor}, ${baseColor - 10}, ${baseColor - 20}, ${layer.opacity})`);
+                gradient.addColorStop(1, `rgba(${baseColor + 30}, ${baseColor + 25}, ${baseColor + 20}, ${layer.opacity})`);
+                
+                ctx.fillStyle = gradient;
+                ctx.fill();
+                
+                // Kar örtüsü
+                ctx.save();
+                ctx.clip();
+                
+                layer.peaks.forEach((peak, i) => {
+                    const x = peak.x - offsetX;
+                    const y = peak.y;
+                    const snowHeight = (canvas.height - y) * layer.snowLine;
+                    
+                    const snowGrad = ctx.createLinearGradient(x, y, x, y + snowHeight);
+                    snowGrad.addColorStop(0, `rgba(255, 255, 255, ${0.9 * layer.opacity})`);
+                    snowGrad.addColorStop(0.7, `rgba(240, 245, 250, ${0.5 * layer.opacity})`);
+                    snowGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                    
+                    ctx.fillStyle = snowGrad;
+                    ctx.fillRect(x - 80, y, 160, snowHeight);
+                });
+                
+                ctx.restore();
+                ctx.restore();
+            });
+        }
 
-            // Hız ve Yön Hesaplama
-            joystickData.x = x / maxRadius;
-            joystickData.y = y / maxRadius;
-            joystickData.active = true;
-        }
+        // Zemin çiz
+        function drawTerrain() {
+            ctx.save();
+            
+            ctx.beginPath();
+            ctx.moveTo(-100, canvas.height);
+            
+            terrainPoints.forEach((point, i) => {
+                const x = point.x - camera.x - terrainOffset;
+                const y = point.y;
+                
+                if (i === 0) {
+                    ctx.lineTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                
+                // Sonsuz döngü için arazi noktalarını yenile
+                if (x < -canvas.width) {
+                    terrainOffset -= canvas.width * 3;
+                }
+            });
+            
+            ctx.lineTo(canvas.width + 100, canvas.height);
+            ctx.lineTo(-100, canvas.height);
+            ctx.closePath();
+            
+            // Kar zemin gradyanı
+            const gradient = ctx.createLinearGradient(0, canvas.height - 150, 0, canvas.height);
+            gradient.addColorStop(0, '#f0f4f8');
+            gradient.addColorStop(0.5, '#e8eef5');
+            gradient.addColorStop(1, '#dce4ec');
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Kar gölgeleri/tekstür
+            ctx.fillStyle = 'rgba(200, 210, 220, 0.3)';
+            for (let i = 0; i < terrainPoints.length - 1; i++) {
+                const point = terrainPoints[i];
+                const x = point.x - camera.x - terrainOffset;
+                const y = point.y;
+                
+                if (Math.random() > 0.7) {
+                    ctx.fillRect(x, y + 5, 20, 3);
+                }
+            }
+            
+            ctx.restore();
+        }
 
-        function resetJoystick() {
-            joystickKnob.style.transform = `translate(-50%, -50%)`;
-            joystickData.x = 0;
-            joystickData.y = 0;
-            joystickData.active = false;
-        }
+        // Penguen çiz
+        function drawPenguin() {
+            ctx.save();
+            ctx.translate(penguin.x, penguin.y);
+            ctx.rotate(penguin.bodyTilt);
+            
+            const size = penguin.size;
+            const walkOffset = Math.sin(penguin.walkCycle) * 5;
+            
+            // Gölge
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.ellipse(0, size * 0.9, size * 0.5, size * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Vücut (ana oval)
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.ellipse(0, walkOffset, size * 0.5, size * 0.7, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Beyaz göğüs
+            ctx.fillStyle = '#f5f5f5';
+            ctx.beginPath();
+            ctx.ellipse(0, walkOffset + size * 0.15, size * 0.35, size * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Kanatlar
+            ctx.fillStyle = '#1a1a1a';
+            
+            // Sol kanat
+            ctx.save();
+            ctx.translate(-size * 0.35, walkOffset);
+            ctx.rotate(penguin.leftFootDown ? -0.3 : -0.5);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.15, size * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // Sağ kanat
+            ctx.save();
+            ctx.translate(size * 0.35, walkOffset);
+            ctx.rotate(penguin.leftFootDown ? 0.5 : 0.3);
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 0.15, size * 0.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            
+            // Ayaklar
+            ctx.fillStyle = '#ff8c00';
+            
+            const footSpread = size * 0.3;
+            const leftFootY = penguin.leftFootDown ? size * 0.85 : size * 0.75;
+            const rightFootY = penguin.leftFootDown ? size * 0.75 : size * 0.85;
+            
+            // Sol ayak
+            ctx.save();
+            ctx.translate(-footSpread, leftFootY + walkOffset);
+            ctx.rotate(-0.2);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-size * 0.15, size * 0.08);
+            ctx.lineTo(0, size * 0.05);
+            ctx.lineTo(size * 0.15, size * 0.08);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Sağ ayak
+            ctx.save();
+            ctx.translate(footSpread, rightFootY + walkOffset);
+            ctx.rotate(-0.2);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-size * 0.15, size * 0.08);
+            ctx.lineTo(0, size * 0.05);
+            ctx.lineTo(size * 0.15, size * 0.08);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            
+            // Baş
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.ellipse(0, walkOffset - size * 0.5, size * 0.35, size * 0.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Gözler
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.ellipse(-size * 0.15, walkOffset - size * 0.55, size * 0.12, size * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.ellipse(size * 0.15, walkOffset - size * 0.55, size * 0.12, size * 0.15, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Göz bebekleri
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.ellipse(-size * 0.15 + size * 0.03, walkOffset - size * 0.52, size * 0.05, size * 0.07, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.ellipse(size * 0.15 + size * 0.03, walkOffset - size * 0.52, size * 0.05, size * 0.07, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Gaga
+            ctx.fillStyle = '#ff8c00';
+            ctx.beginPath();
+            ctx.moveTo(0, walkOffset - size * 0.45);
+            ctx.lineTo(-size * 0.08, walkOffset - size * 0.4);
+            ctx.lineTo(size * 0.08, walkOffset - size * 0.4);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.restore();
+        }
 
-        joystickContainer.addEventListener('touchstart', handleTouch, { passive: false });
-        joystickContainer.addEventListener('touchmove', handleTouch, { passive: false });
-        joystickContainer.addEventListener('touchend', resetJoystick);
-        joystickContainer.addEventListener('touchcancel', resetJoystick);
+        // Güncelleme
+        function update() {
+            // Joystick ile hareket
+            if (joystickPower > 0.1) {
+                penguin.velocityX = Math.cos(joystickAngle) * joystickPower * 3;
+                penguin.velocityY = Math.sin(joystickAngle) * joystickPower * 3;
+                
+                // Yürüme animasyonu
+                penguin.walkCycle += 0.15 * joystickPower;
+                
+                // Ayak değişimi
+                if (Math.floor(penguin.walkCycle / Math.PI) % 2 === 0) {
+                    penguin.leftFootDown = true;
+                    penguin.bodyTilt = 0.08; // Sağa yatık
+                } else {
+                    penguin.leftFootDown = false;
+                    penguin.bodyTilt = -0.08; // Sola yatık
+                }
+                
+                // Rotasyon (yürüme yönü)
+                penguin.rotation = joystickAngle;
+            } else {
+                penguin.velocityX *= 0.9;
+                penguin.velocityY *= 0.9;
+                penguin.bodyTilt *= 0.9;
+            }
+            
+            // Kamera hareketi (dünya kaydırma)
+            camera.x += penguin.velocityX;
+            camera.y += penguin.velocityY;
+            
+            // Sonsuz arazi için dağları kaydır
+            mountainLayers.forEach(layer => {
+                layer.peaks.forEach(peak => {
+                    if (peak.x - camera.x * layer.parallax < -canvas.width) {
+                        peak.x += canvas.width * 4;
+                    }
+                });
+            });
+        }
 
+        // Ana oyun döngüsü
+        function gameLoop() {
+            // Temizle
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Gökyüzü gradyanı
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            skyGradient.addColorStop(0, '#a8b8c4');
+            skyGradient.addColorStop(0.4, '#d4dde4');
+            skyGradient.addColorStop(1, '#e8eef2');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Çiz
+            drawMountains();
+            drawTerrain();
+            drawPenguin();
+            
+            // Güncelle
+            update();
+            
+            requestAnimationFrame(gameLoop);
+        }
 
-        // --- Oyun Döngüsü (Render Loop) ---
-        const moveSpeed = 0.15;
-        const turnSpeed = 0.05;
-        let walkCycle = 0;
+        // Başlat
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            generateTerrain();
+            generateMountains();
+        });
 
-        function animate() {
-            requestAnimationFrame(animate);
-
-            // Penguen Hareketi
-            if (joystickData.active) {
-                // Yön (Dönme)
-                if (joystickData.x !== 0) {
-                    penguinGroup.rotation.y -= joystickData.x * turnSpeed;
-                }
-
-                // İleri/Geri Hareket
-                if (joystickData.y !== 0) {
-                    const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(penguinGroup.quaternion);
-                    forward.multiplyScalar(joystickData.y * moveSpeed); // Joystick y ekseninde ileri gitmek için negatif değerler olabilir.
-                    penguinGroup.position.add(forward);
-
-                    // Yürüme Animasyonu (Sağa-Sola Sallanma)
-                    walkCycle += 0.2;
-                    const tiltAngle = Math.sin(walkCycle) * 0.15; // Sallanma açısı
-                    penguinGroup.rotation.z = tiltAngle;
-                }
-            } else {
-                // Hareket etmiyorsa dik dur
-                if (Math.abs(penguinGroup.rotation.z) > 0.01) {
-                    penguinGroup.rotation.z *= 0.8; // Yavaşça düzelt
-                } else {
-                    penguinGroup.rotation.z = 0;
-                }
-            }
-
-            // Kamera Takibi
-            const relativeCameraOffset = new THREE.Vector3(0, 5, -10); // Penguenin arkasından ve yukarısından bak
-            const cameraOffset = relativeCameraOffset.applyMatrix4(penguinGroup.matrixWorld);
-            camera.position.copy(cameraOffset);
-            camera.lookAt(penguinGroup.position);
-
-            renderer.render(scene, camera);
-        }
-
-        // --- Pencere Boyutu Değişimi ---
-        window.addEventListener('resize', onWindowResize, false);
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        animate(); // Döngüyü başlat
-    </script>
+        generateTerrain();
+        generateMountains();
+        gameLoop();
+    </script>
 </body>
 </html>
